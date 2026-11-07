@@ -2,10 +2,10 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR } from './data.js?v=202611080036';
-import { watercolorStyle } from './mapstyle.js?v=202611080036';
-import * as sync from './sync.js?v=202611080036';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080036';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR } from './data.js?v=202611080049';
+import { watercolorStyle } from './mapstyle.js?v=202611080049';
+import * as sync from './sync.js?v=202611080049';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080049';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -36,7 +36,7 @@ let view = { kind: 'list' };    // list | edit | preview {item}
 let draft = null;
 let filters = new Set(CAT_KEYS);
 let tagFilter = new Set();      // lower-cased tags; empty = show all
-let showIdeas = true;
+let showIdeas = false;   // built-in suggestions are opt-in (Ideas button), to keep the map calm
 const hasTagMatch = p => !tagFilter.size || (p.tags || []).some(t => tagFilter.has(t.toLowerCase()));
 const visible = p => filters.has(p.cat) && hasTagMatch(p);
 let bounceId = null;
@@ -125,9 +125,12 @@ const ideaLayer = L.layerGroup().addTo(map);
 const pinLayer = L.layerGroup().addTo(map);
 const mapEl = $('#map');
 const updateIdeaNames = () => {
-  mapEl.classList.toggle('hide-idea-names', map.getZoom() < 15);
-  mapEl.classList.toggle('hide-pin-names', map.getZoom() < 14);
+  const z = map.getZoom();
+  mapEl.classList.toggle('hide-idea-names', z < 14);
+  // Icons are smaller when zoomed out and reach full size at street level.
+  mapEl.style.setProperty('--ps', z <= 12.5 ? .6 : z <= 13.5 ? .72 : z <= 14.5 ? .86 : 1);
 };
+if (new URLSearchParams(location.search).has('debug')) window.__map = map;
 map.on('zoomend', updateIdeaNames); updateIdeaNames();
 
 // Hand-lettered area names + little paintings, shown only at zooms where they help.
@@ -147,7 +150,7 @@ function renderDecor() {
     L.marker([a.lat, a.lng], { interactive: false, keyboard: false, zIndexOffset: -1000,
       icon: L.divIcon({ className: `arealbl ${a.size}${a.water ? ' water' : ''}`, iconSize: [0, 0], html: `<span>${esc(a.name)}</span>` }) }).addTo(decorLayer);
   }
-  if (z >= 13 && z <= 16.5) for (const d of DECOR) {
+  if (z >= 15 && z <= 17) for (const d of DECOR) {
     L.marker([d.lat, d.lng], { interactive: false, keyboard: false, zIndexOffset: -900,
       icon: L.divIcon({ className: 'decor', iconSize: [30, 30], iconAnchor: [15, 26],
         html: `<svg viewBox="0 0 48 48" aria-hidden="true"><g filter="url(#wc)">${DECOR_ART[d.kind]}</g></svg>` }) }).addTo(decorLayer);
@@ -160,9 +163,9 @@ function pinIcon(p, extra = '') {
   const bob = bounceId === p.id ? 'bob' : '';
   const heart = p.fav ? `<svg class="fav" viewBox="0 0 24 24" aria-label="Must-go"><path d="M12 20.5 4.2 13A4.8 4.8 0 0 1 12 6.8a4.8 4.8 0 0 1 7.8 6.2z" fill="#E58C7E" stroke="#4A4036" stroke-width="1.4" stroke-linejoin="round"/></svg>` : '';
   return L.divIcon({
-    className: `pinicon${sel}${extra}`,
+    className: `pinicon${sel}${p.fav ? ' fav' : ''}${extra}`,
     iconSize: [48, 48], iconAnchor: [24, 44],
-    html: `<div class="pin"><div class="${bob}">${artSVG(p.cat, 'art')}${heart}<span class="nm">${esc(p.name || 'New place')}</span></div></div>`,
+    html: `<div class="pin"><div class="${bob}">${artSVG(p.cat, 'art')}${heart}<span class="nm" title="${esc(p.name)}">${esc(shortName(p.name) || 'New place')}</span></div></div>`,
   });
 }
 function ideaIcon(i) {
@@ -184,11 +187,24 @@ function renderMap() {
     }
   }
   const editingId = view.kind === 'edit' && draft ? draft.id : null;
-  for (const p of places) {
-    if (!visible(p) || p.id === editingId) continue;
-    L.marker([p.lat, p.lng], { icon: pinIcon(p), title: p.name, riseOnHover: true, zIndexOffset: 100 })
-      .on('click', () => { if (mode === 'browse') openDetail(p.id, false); })
-      .addTo(pinLayer);
+  const shown = places.filter(p => visible(p) && p.id !== editingId);
+  for (const g of clusterPins(shown)) {
+    if (g.length === 1) {
+      const p = g[0];
+      L.marker([p.lat, p.lng], { icon: pinIcon(p), title: p.name, riseOnHover: true, zIndexOffset: 100 + (p.fav ? 50 : 0) })
+        .on('click', () => { if (mode === 'browse') openDetail(p.id, false); })
+        .addTo(pinLayer);
+    } else {
+      const c = L.latLngBounds(g.map(p => [p.lat, p.lng])).getCenter();
+      L.marker(c, { icon: clusterIcon(g), title: g.map(p => p.name).join(', '), riseOnHover: true, zIndexOffset: 120 })
+        .on('click', () => {
+          if (mode !== 'browse') return;
+          const b = L.latLngBounds(g.map(p => [p.lat, p.lng]));
+          const z = Math.min(18, Math.max(map.getZoom() + 2, map.getBoundsZoom(b.pad(0.6))));
+          flyVis(b.getCenter(), z, { duration: .6 });
+        })
+        .addTo(pinLayer);
+    }
   }
   if (draft && view.kind === 'edit') {
     const m = L.marker([draft.lat, draft.lng], { icon: pinIcon(draft, places.some(p => p.id === draft.id) ? '' : ' temp'), draggable: true, zIndexOffset: 1000, title: 'Drag to move' })
@@ -207,7 +223,85 @@ function renderMap() {
     if (!already) L.marker([i.lat, i.lng], { icon: pinIcon({ ...i, id: '__preview' }, ' temp'), zIndexOffset: 1000, interactive: false }).addTo(pinLayer);
   }
   bounceId = null;
+  setTimeout(declutterLabels, 0);
 }
+
+/* ---------- keeping the map tidy ---------- */
+// Shorter names on the map (the full name is in the place card).
+function shortName(n) {
+  const full = String(n || ''), cut = full.replace(/[\s,–-]+chiang ?mai$/i, '').trim();
+  let s = cut.split(/\s+/).length >= 2 ? cut : full;
+  if (s.length > 22) s = s.slice(0, 21).replace(/\s+\S*$/, '') + '…';
+  return s;
+}
+// Pins closer than ~38px on screen become one bundle with a count. The selected pin stays alone.
+function clusterPins(list) {
+  if (map.getZoom() >= 17) return list.map(p => [p]);
+  const selId = view.kind === 'detail' ? view.id : null;
+  const groups = [];
+  const sorted = [...list].sort((a, b) => (b.fav - a.fav) || a.name.localeCompare(b.name));
+  for (const p of sorted) {
+    const pt = map.project([p.lat, p.lng]);
+    if (p.id === selId) { groups.push({ pt, items: [p], solo: true }); continue; }
+    const g = groups.find(g => !g.solo && g.pt.distanceTo(pt) < 38);
+    if (g) g.items.push(p); else groups.push({ pt, items: [p] });
+  }
+  return groups.map(g => g.items);
+}
+function clusterIcon(g) {
+  const lead = g[0], more = g.length - 1;
+  return L.divIcon({
+    className: 'pinicon cluster', iconSize: [48, 48], iconAnchor: [24, 44],
+    html: `<div class="pin">${artSVG(g[1].cat, 'art back')}${artSVG(lead.cat, 'art')}<span class="count">${g.length}</span><span class="nm">${esc(shortName(lead.name))} <i>+${more}</i></span></div>`,
+  });
+}
+// Keep every pin name, but move it to a side of its icon that has room:
+// right first, then below, left, above. Selected > must-go > others get first pick.
+// Only suggestion ("idea") names are hidden when there's no room. Area names fade under pins.
+const boxHit = (a, b, pad = 2) => a.left < b.right + pad && a.right > b.left - pad && a.top < b.bottom + pad && a.bottom > b.top - pad;
+const overlapArea = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+const POS = ['r', 'b', 'l', 't'];
+function declutterLabels() {
+  const items = [...mapEl.querySelectorAll('.pinicon, .ideaicon')].map(el => ({
+    el, nm: el.querySelector('.nm'), icon: (el.querySelector('.art:not(.back)') || el.querySelector('.ring'))?.getBoundingClientRect(),
+    pr: el.classList.contains('sel') ? 3 : el.classList.contains('fav') ? 2 : el.classList.contains('ideaicon') ? 0 : 1,
+  }));
+  const box = mapEl.getBoundingClientRect();
+  const placed = [];
+  const order = [...items].sort((a, b) => (b.pr - a.pr) || ((a.icon?.top || 0) - (b.icon?.top || 0)));
+  for (const it of order) {
+    if (!it.nm || !it.icon) continue;
+    it.nm.classList.remove('clash', 'pos-b', 'pos-l', 'pos-t');
+    const r0 = it.nm.getBoundingClientRect();
+    if (!r0.width) continue;
+    const w = r0.width, h = r0.height, ic = it.icon, cx = (ic.left + ic.right) / 2, cy = (ic.top + ic.bottom) / 2;
+    const cand = {
+      r: { left: ic.right - 2, right: ic.right - 2 + w, top: cy - h / 2, bottom: cy + h / 2 },
+      b: { left: cx - w / 2, right: cx + w / 2, top: ic.bottom - 1, bottom: ic.bottom - 1 + h },
+      l: { left: ic.left + 2 - w, right: ic.left + 2, top: cy - h / 2, bottom: cy + h / 2 },
+      t: { left: cx - w / 2, right: cx + w / 2, top: ic.top - h + 1, bottom: ic.top + 1 },
+    };
+    const others = items.filter(o => o !== it && o.icon).map(o => o.icon);
+    const cost = r => placed.reduce((s, q) => s + overlapArea(r, q), 0) + others.reduce((s, q) => s + overlapArea(r, q), 0)
+      + (r.left < box.left || r.right > box.right || r.top < box.top || r.bottom > box.bottom ? 1 : 0);
+    let best = null, bestCost = Infinity;
+    for (const k of POS) {
+      const r = cand[k], c = (placed.some(q => boxHit(r, q)) || others.some(q => boxHit(r, q, 0))) ? cost(r) + 0.5 : cost(r);
+      if (c === 0) { best = k; bestCost = 0; break; }
+      if (c < bestCost) { best = k; bestCost = c; }
+    }
+    if (bestCost > 0 && it.pr === 0) { it.nm.classList.add('clash'); continue; }
+    if (best !== 'r') it.nm.classList.add('pos-' + best);
+    placed.push(cand[best]);
+  }
+  const blockers = [...placed, ...items.map(i => i.icon).filter(Boolean)];
+  for (const sp of mapEl.querySelectorAll('.arealbl span')) {
+    const r = sp.getBoundingClientRect();
+    sp.classList.toggle('clash', blockers.some(b => boxHit(r, b, 4)));
+  }
+}
+map.on('zoomend', () => renderMap());
+map.on('moveend', () => setTimeout(declutterLabels, 0));
 
 /* ---------- panel ---------- */
 const stayOf = () => places.find(p => p.cat === 'stay');

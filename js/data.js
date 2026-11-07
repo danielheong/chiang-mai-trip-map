@@ -2,8 +2,8 @@
 // Coordinates for built-in places are approximate (good to within a block or so).
 
 // Each category has a small hand-painted illustration (48×48 viewBox). Drawn for this
-// map: guesthouse, Lanna temple, khao soi, coffee, market stall, Doi Suthep, Yi Peng
-// lanterns and a red songthaew. Rendered through the #wc watercolor filter in index.html.
+// map: guesthouse, Lanna temple, khao soi, coffee, market stall, Doi Suthep, martini
+// glass and a quiet little flower for anything unsorted. Rendered through the #wc watercolor filter in index.html.
 const K = 'stroke="#4A4036" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"';
 const N = 'fill="none" ' + K;
 export const CATS = {
@@ -54,23 +54,21 @@ export const CATS = {
      <circle cx="38" cy="30.5" r="5.2" fill="#7E9C62" ${K}/>
      <path d="M2.5 41.5h43" ${N}/>` },
   night: { label: 'Nightlife', short: 'Night', art:
-    `<circle cx="14" cy="24" r="10.5" fill="#F6D98C" opacity=".45"/><circle cx="32.5" cy="27.5" r="12" fill="#F6D98C" opacity=".45"/>
-     <path d="M2.5 8.5Q24 18.5 45.5 8.5" ${N}/>
-     <path d="M14 12.6V16M32.5 14.6v4" ${N}/>
-     <ellipse cx="14" cy="24" rx="6" ry="8" fill="#E7A33E" ${K}/>
-     <path d="M14 16.2v15.6M10.6 18.4c-1.6 3.6-1.6 7.6 0 11.2M17.4 18.4c1.6 3.6 1.6 7.6 0 11.2" fill="none" stroke="#4A4036" stroke-width=".8" opacity=".5"/>
-     <ellipse cx="32.5" cy="27.5" rx="7" ry="9" fill="#E58C7E" ${K}/>
-     <path d="M32.5 18.6v17.8M28.6 21c-1.8 4.2-1.8 8.8 0 13M36.4 21c1.8 4.2 1.8 8.8 0 13" fill="none" stroke="#4A4036" stroke-width=".8" opacity=".5"/>
-     <path d="M11.5 16.4h5M11.5 31.6h5M29.6 18.8h5.8M29.6 36.2h5.8M14 31.8v4.2M32.5 36.5v4.5" ${N}/>` },
+    `<ellipse cx="24" cy="41.5" rx="9" ry="2.4" fill="#CFE3E6" ${K}/>
+     <path d="M24 26.5v14.5" fill="none" stroke="#4A4036" stroke-width="1.6" stroke-linecap="round"/>
+     <path d="M8.5 9.5h31L24 26.5z" fill="#E3EEF0" ${K}/>
+     <path d="M13.2 14.6h21.6L24 26.4z" fill="#F0C9A0"/>
+     <path d="M8.5 9.5h31L24 26.5z" ${N}/>
+     <path d="M33 4.5 21 19" fill="none" stroke="#9C7660" stroke-width="1.4" stroke-linecap="round"/>
+     <circle cx="25.6" cy="13.6" r="3.2" fill="#8FAA72" ${K}/><circle cx="26.4" cy="12.9" r="1.1" fill="#D9604F"/>
+     <path d="M11.5 10.8h7" fill="none" stroke="#fff" stroke-width="1.4" stroke-linecap="round" opacity=".8"/>` },
   other: { label: 'Other', art:
-    `<path d="M18 17.5h22.5a2 2 0 0 1 2 2V34H18z" fill="#D9604F" ${K}/>
-     <path d="M18.5 15.5h24" ${N}/>
-     <path d="M21 21h18.5v5.5H21z" fill="#F7EFE0" ${K}/>
-     <path d="M5.5 34v-8l4.5-6.5h8V34z" fill="#D9604F" ${K}/>
-     <path d="M10.8 21.6H16v5.2H8.2z" fill="#CFE3E6" ${K}/>
-     <path d="M4.5 34h39" ${N}/>
-     <circle cx="12.5" cy="35.5" r="4" fill="#4A4036"/><circle cx="12.5" cy="35.5" r="1.5" fill="#F7EFE0"/>
-     <circle cx="35" cy="35.5" r="4" fill="#4A4036"/><circle cx="35" cy="35.5" r="1.5" fill="#F7EFE0"/>` },
+    `<path d="M24 31v11" fill="none" stroke="#7E9C62" stroke-width="1.8" stroke-linecap="round"/>
+     <path d="M24 38c-3.5-3.5-7.5-3.5-9.5-1.5 3 2.6 6.6 2.8 9.5 1.5z" fill="#B5CF7A" ${K}/>
+     <circle cx="24" cy="15" r="5.6" fill="#DCD5EE" ${K}/><circle cx="31.6" cy="20.5" r="5.6" fill="#DCD5EE" ${K}/>
+     <circle cx="28.7" cy="29.5" r="5.6" fill="#DCD5EE" ${K}/><circle cx="19.3" cy="29.5" r="5.6" fill="#DCD5EE" ${K}/>
+     <circle cx="16.4" cy="20.5" r="5.6" fill="#DCD5EE" ${K}/>
+     <circle cx="24" cy="23" r="4.6" fill="#E2B857" ${K}/>` },
 };
 export const CAT_KEYS = Object.keys(CATS);
 
@@ -154,12 +152,12 @@ export const AREAS = [
   { name: 'Old City',        lat: 18.7884, lng: 98.9868, size: 'l', min: 12 },
   { name: 'Nimman',          lat: 18.7990, lng: 98.9655, size: 'm', min: 13 },
   { name: 'Ping River',      lat: 18.7930, lng: 99.0060, size: 'm', min: 13, water: true },
-  { name: 'Night Bazaar',    lat: 18.7832, lng: 99.0000, size: 's', min: 14 },
-  { name: 'Santitham',       lat: 18.8045, lng: 98.9825, size: 's', min: 14 },
-  { name: 'Wua Lai',         lat: 18.7772, lng: 98.9868, size: 's', min: 14 },
-  { name: 'Chiang Mai Uni',  lat: 18.8020, lng: 98.9530, size: 's', min: 14 },
+  { name: 'Night Bazaar',    lat: 18.7832, lng: 99.0000, size: 's', min: 15 },
+  { name: 'Santitham',       lat: 18.8045, lng: 98.9825, size: 's', min: 15 },
+  { name: 'Wua Lai',         lat: 18.7772, lng: 98.9868, size: 's', min: 15 },
+  { name: 'Chiang Mai Uni',  lat: 18.8020, lng: 98.9530, size: 's', min: 15 },
   { name: 'Doi Suthep',      lat: 18.8070, lng: 98.9170, size: 'l', min: 11 },
-  { name: 'Chang Khlan',     lat: 18.7760, lng: 99.0010, size: 's', min: 14 },
+  { name: 'Chang Khlan',     lat: 18.7760, lng: 99.0010, size: 's', min: 15 },
 ];
 
 // Little painted decorations scattered on the map (no meaning, just charm).

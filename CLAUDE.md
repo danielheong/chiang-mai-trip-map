@@ -13,7 +13,7 @@ A personal Chiang Mai trip-planning map. Static site, **no build step, no npm de
 
 ## Architecture
 - **Map:** Leaflet + OpenFreeMap vector tiles via MapLibre GL (`maplibre-gl-leaflet`), drawn with our own style object from `js/mapstyle.js`. CARTO free tiles now need an API key, so don't go back to them.
-- **Pins:** `L.divIcon` teardrop SVGs; glyphs and colours per category live in `CATS` (`js/data.js`) and the `--c-<cat>` CSS tokens.
+- **Pins:** `L.divIcon` painted SVGs from `CATS[cat].art` (`js/data.js`) with `--c-<cat>` wash colours. Night = martini glass, Other = quiet flower.
 - **State:** `places` array in localStorage key `cm-trip-map-places`. Place shape:
   `{ id, name, cat, note, fav, exact, lat, lng, ideaId, createdAt, tags[] }`. `exact` = location came from OSM search, coordinates or a Google Maps link (vs. built-in/hand-placed).
 - **Panel views:** `sync` (trip code) | `list` | `detail` (place card with Google Maps/Waze links) | `edit` (uses `draft`) | `preview` (search or idea result before adding).
@@ -30,6 +30,7 @@ A personal Chiang Mai trip-planning map. Static site, **no build step, no npm de
 - Fonts: Amatic SC (titles), Patrick Hand (UI labels, pin names), Nunito (body text).
 - Tokens are CSS custom properties at the top of `css/style.css`; `--wobble` is the hand-drawn pill radius.
 - Phone (≤860px): full-screen map, panel is a bottom sheet (`#panel[data-sheet=peek|half|full]`, `setSheet()` in app.js).
+- Declutter: built-in ideas are off by default; pins closer than ~38px bundle (`clusterPins`, off at zoom ≥17); every pin name stays visible and `declutterLabels()` moves it right → below → left → above to avoid overlaps (only idea names may hide); `shortName()` trims long names on the map; icon size scales with zoom via `--ps`.
 - The map needs requestAnimationFrame, so it stays blank in a hidden/background browser tab; that's not a bug.
 
 ## Ideas not built yet
