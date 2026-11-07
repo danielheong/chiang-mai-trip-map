@@ -2,10 +2,10 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611080143';
-import { watercolorStyle } from './mapstyle.js?v=202611080143';
-import * as sync from './sync.js?v=202611080143';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080143';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611080203';
+import { watercolorStyle } from './mapstyle.js?v=202611080203';
+import * as sync from './sync.js?v=202611080203';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080203';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -406,14 +406,14 @@ function renderPanel() {
       <div class="filters" role="group" aria-label="Show categories">${CAT_KEYS.map(c => `<button type="button" class="fchip" data-f="${c}" aria-pressed="${filters.has(c)}">${dotHTML(c)}${CATS[c].short || CATS[c].label}</button>`).join('')}</div>
       ${allTags().length ? `<div class="filters tagfilters" role="group" aria-label="Filter by tag"><span class="flabel">Tags</span>${allTags().map(t => `<button type="button" class="tchip" data-tf="${esc(t)}" aria-pressed="${tagFilter.has(t.toLowerCase())}">#${esc(t)}</button>`).join('')}${tagFilter.size ? '<button type="button" class="tclear" data-tfclear>Clear</button>' : ''}</div>` : ''}`;
     if (!n) {
-      body.innerHTML = `<div class="empty">
+      body.innerHTML = (showJoinHint() ? joinHintHTML() : '') + `<div class="empty">
         <svg class="art" viewBox="0 0 48 48" aria-hidden="true"><g filter="url(#wc)">${CATS.see.art}</g></svg>
         <h3>No pins yet</h3>
         <p>Type a name in the <b>search bar</b> on the map, or paste a Google Maps link.</p>
         <p>Or tap a dotted <b>idea</b>, or use <b>Add a place</b> and tap the map yourself.</p></div>`;
       return;
     }
-    body.innerHTML = listBody();
+    body.innerHTML = (showJoinHint() ? joinHintHTML() : '') + listBody();
     return;
   }
 
@@ -969,6 +969,37 @@ function doImport() {
   toast(`Added ${n} ${n === 1 ? 'place' : 'places'} from “${v.list.name}”`);
 }
 
+/* ---------- home-screen app on iPhone ---------- */
+// A home-screen web app has its own storage, separate from Safari. If it starts with no
+// trip code, offer to join the trip (paste the code copied in Safari) so pins come across.
+const isHomeApp = () => navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+const JOIN_HINT_KEY = 'cm-trip-map-join-hint-off';
+function showJoinHint() {
+  if (viewOnly || !sync.isConfigured() || sync.getCode() || !isHomeApp()) return false;
+  try { return localStorage.getItem(JOIN_HINT_KEY) !== '1'; } catch { return true; }
+}
+function joinHintHTML() {
+  return `<div class="joinhint">
+    <b>Bring your pins from Safari</b>
+    <p>On iPhone, the home-screen app keeps its own storage, separate from Safari. To get the same pins here: in Safari open <b>Sync → Copy code</b>, then come back and tap <b>Paste code</b>.</p>
+    <div class="row"><button type="button" class="btn primary" data-pastecode>Paste code</button><button type="button" class="tclear" data-joinhintoff>Not now</button></div></div>`;
+}
+// Reads the code from the clipboard (iPhone shows a small "Paste" bubble to allow it).
+async function pasteAndJoin() {
+  let txt = '';
+  try { txt = await navigator.clipboard.readText(); } catch {}
+  const m = String(txt).match(/#join=([A-Za-z0-9-]+)/);
+  const code = sync.normCode(m ? m[1] : txt);
+  if (code.length < 16) {
+    view = { kind: 'sync' }; renderPanel(); setSheet('full');
+    toast(txt ? 'That isn’t a trip code. Copy it again in Safari (Sync → Copy code).' : 'Nothing to paste. In Safari open Sync → Copy code first.');
+    setTimeout(() => $('#f-code')?.focus(), 50);
+    return;
+  }
+  sync.setCode(code);
+  view = { kind: 'sync' }; renderPanel(); toast('Joined your trip. Bringing your pins over…');
+}
+
 /* ---------- sync panel + status ---------- */
 function ago(ts) {
   const s = Math.round((Date.now() - ts) / 1000);
@@ -1002,7 +1033,7 @@ function renderSyncPanel(head, body) {
       <div><span class="l golabel">First device</span><button type="button" class="btn primary" data-newcode>Create a trip code</button>
         <p class="fine" style="margin-top:6px">Your current ${places.length} ${places.length === 1 ? 'pin' : 'pins'} will be uploaded.</p></div>
       <div><label class="l golabel" for="f-code">Already have a code?</label>
-        <div class="locrow"><input type="text" id="f-code" placeholder="ABCD-EFGH-…" autocomplete="off" autocapitalize="characters" spellcheck="false"><button type="button" class="btn" data-joincode>Join</button></div>
+        <div class="locrow"><input type="text" id="f-code" placeholder="ABCD-EFGH-…" autocomplete="off" autocapitalize="characters" spellcheck="false"><button type="button" class="btn ghost" data-pastecode title="Paste a code you copied">Paste</button><button type="button" class="btn" data-joincode>Join</button></div>
         <p class="fine" style="margin-top:6px">Pins on this device will be merged in, not replaced.</p></div></div>`;
     $('#f-code').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); body.querySelector('[data-joincode]').click(); } });
     return;
@@ -1564,8 +1595,10 @@ document.querySelector('.panel').addEventListener('click', e => {
   if (t.closest('[data-offline]')) { saveOffline(); return; }
   if (t.closest('[data-viewlink]')) { copyViewLink(); return; }
   if (t.closest('[data-newcode]')) { sync.setCode(sync.newCode()); renderPanel(); toast('Trip code created. Now add your phone.'); return; }
+  if (t.closest('[data-pastecode]')) { pasteAndJoin(); return; }
+  if (t.closest('[data-joinhintoff]')) { try { localStorage.setItem(JOIN_HINT_KEY, '1'); } catch {} renderPanel(); return; }
   if (t.closest('[data-joincode]')) {
-    const v = $('#f-code').value;
+    const raw = $('#f-code').value, lm2 = raw.match(/#join=([A-Za-z0-9-]+)/), v = lm2 ? lm2[1] : raw;
     if (!sync.setCode(v)) { toast('That code looks too short. It has 20 letters and numbers.'); $('#f-code').focus(); return; }
     renderPanel(); toast('Joined. Merging pins…'); return;
   }

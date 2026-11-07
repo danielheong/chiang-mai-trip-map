@@ -442,3 +442,8 @@ button{cursor:pointer}
 .qconfirm span{flex:1;min-width:0}
 .qconfirm .btn{padding:4px 12px;font-size:15px}
 .toastbtn{margin-left:8px;border:0;background:var(--paper);color:var(--ink);border-radius:999px;padding:2px 12px;font-family:var(--f-hand);font-size:16px}
+
+/* ---------- home-screen app: join hint ---------- */
+.joinhint{margin:4px 2px 10px;padding:12px 14px;border-radius:16px;background:var(--c-see);border:1.5px solid color-mix(in srgb,var(--mustard) 70%,var(--ink))}
+.joinhint b{font-family:var(--f-hand);font-weight:400;font-size:19px}
+.joinhint p{margin:4px 0 8px;font-size:13.5px}

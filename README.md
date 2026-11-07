@@ -74,6 +74,10 @@ The built-in search uses OpenStreetMap, which misses some small hotels and new s
 
 The helper only follows links to Google, so it can't be used to fetch anything else. (Google's terms don't allow Google *search* results on a non-Google map, which is why the map doesn't search Google directly.)
 
+## iPhone home-screen app
+
+On iPhone, an app added to the home screen keeps its own storage, separate from Safari. Use sync to share pins between them: in Safari open **Sync → Copy code**, then in the home-screen app tap **Paste code** (it offers this when it starts without a trip).
+
 ## Home-screen icon
 
 The icon is `icons/icon.svg` (a painted Lanna temple in front of Doi Suthep), saved as `icons/icon-180.png` (iPhone), `icon-192.png` and `icon-512.png` (Android). To use your own picture, replace those PNGs with square images of the same sizes (no transparent areas), publish, then on the phone delete the old home-screen icon and add it again: iPhones save the icon at the moment you add it.
