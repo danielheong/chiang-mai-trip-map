@@ -198,6 +198,9 @@ function renderMap() {
       updateLocUI('Moved by hand. For a precise spot, paste coordinates from Google Maps.', false);
     });
   }
+  if (view.kind === 'import') {
+    view.rows.forEach((r, i) => { if (r.pick) L.marker([r.lat, r.lng], { icon: pinIcon({ ...r, id: '__imp' + i }, ' temp'), zIndexOffset: 900, interactive: false }).addTo(pinLayer); });
+  }
   if (view.kind === 'preview') {
     const i = view.item;
     const already = places.some(p => i.ideaId && p.ideaId === i.ideaId);
@@ -259,6 +262,7 @@ function renderPanel() {
   }
 
   if (view.kind === 'sync') { renderSyncPanel(head, body); return; }
+  if (view.kind === 'import') { renderImportPanel(head, body); return; }
 
   if (view.kind === 'detail') {
     const p = places.find(x => x.id === view.id);
@@ -277,6 +281,9 @@ function renderPanel() {
     return;
   }
 
+  if (view.kind === 'import') {
+    view.rows.forEach((r, i) => { if (r.pick) L.marker([r.lat, r.lng], { icon: pinIcon({ ...r, id: '__imp' + i }, ' temp'), zIndexOffset: 900, interactive: false }).addTo(pinLayer); });
+  }
   if (view.kind === 'preview') {
     const i = view.item;
     const saved = places.find(p => (i.ideaId && p.ideaId === i.ideaId) || p.name.toLowerCase() === i.name.toLowerCase());
@@ -346,6 +353,81 @@ function renderPanel() {
   });
   if (isNew) setTimeout(() => nm.focus({ preventScroll: true }), 30);
 }
+
+/* ---------- import a shared Google Maps list ---------- */
+const CAT_GUESS = [
+  ['stay', /hotel|hostel|resort|guest ?house|homestay|villa|residence|\binn\b|airbnb|condo|lodge|^home\b/i],
+  ['night', /\bbar\b|bar\.|\bpub\b|club|jazz|cocktail|beer|brew|speakeasy/i],
+  ['cafe', /caf[eé]|coffee|roast|espresso|bakery|cake|dessert|\btea\b|brunch|matcha/i],
+  ['shop', /market|bazaar|\bmall\b|\bshop|store|plaza|walking street/i],
+  ['nature', /national park|\bpark\b|\bdoi\b|waterfall|\bfalls?\b|lake|reservoir|garden|mountain|cave|hot spring|canyon|view ?point/i],
+  ['see', /\bwat\b|temple|museum|gallery|monument|palace|chedi|\bgate\b|art village/i],
+  ['eat', /restaurant|food|khao|kaphrao|noodle|kitchen|grill|bbq|eatery|diner|som ?tam|\bpad\b|crab|seafood|pork|chicken|curry|soup/i],
+];
+function guessCat(name, note) {
+  const d = DIR.find(x => norm(x.name) === norm(name) || (x.alias && norm(x.alias).split(' ').length > 1 && norm(name).includes(norm(x.alias))));
+  if (d) return d.cat;
+  const hay = `${name} ${note || ''}`;
+  for (const [c, re] of CAT_GUESS) if (re.test(hay)) return c;
+  return 'other';
+}
+const listPinId = r => r.gid ? 'g' + r.gid.replace(/[^0-9-]+/g, '_').slice(0, 60) : null;
+function existingFor(r) {
+  const id = listPinId(r);
+  return places.find(p => (id && p.id === id) || (norm(p.name) === norm(r.name) && km(p, r) < 0.3) || km(p, r) < 0.025) || null;
+}
+function openImport(list) {
+  const rows = list.places.map(r => {
+    const ex = existingFor(r);
+    return { ...r, cat: ex ? ex.cat : guessCat(r.name, r.note), pick: !ex, existing: ex ? ex.name : '' };
+  });
+  draft = null; setMode('browse');
+  view = { kind: 'import', list, rows, tag: list.name && list.name !== 'Saved list' ? list.name : '' };
+  renderMap(); renderPanel(); setSheet('full');
+  const b = rows.length ? L.latLngBounds(rows.map(r => [r.lat, r.lng])) : null;
+  if (b) map.flyToBounds(b.pad(0.2), { maxZoom: 15, duration: .7 });
+}
+function renderImportPanel(head, body) {
+  const v = view, picked = v.rows.filter(r => r.pick).length, fresh = v.rows.filter(r => !r.existing).length;
+  head.innerHTML = `<button type="button" class="back" data-back>‹ My places</button>
+    <h2 style="margin-top:6px">Import list <small>${v.rows.length} ${v.rows.length === 1 ? 'place' : 'places'}</small></h2>`;
+  if (!v.rows.length) { body.innerHTML = `<div class="empty"><p>“${esc(v.list.name)}” has no places, or they’re hidden. Check the list is shared with “anyone with the link”.</p></div>`; return; }
+  body.innerHTML = `<div class="form imp">
+    <p class="fine" style="margin:0">From your Google Maps list <b>“${esc(v.list.name)}”</b>. ${fresh < v.rows.length ? `${v.rows.length - fresh} already on your map ${v.rows.length - fresh === 1 ? 'is' : 'are'} unticked.` : 'Untick anything you don’t want.'} Check the guessed types.</p>
+    <div><label class="l" for="imp-tag">Tag them all with</label>
+      <input type="text" id="imp-tag" value="${esc(v.tag)}" placeholder="e.g. Google list (optional)" maxlength="30"></div>
+    <div class="row" style="gap:6px"><button type="button" class="tclear" data-impall="1">Select all</button><button type="button" class="tclear" data-impall="0">Select none</button></div>
+    <div class="improws">${v.rows.map((r, i) => `
+      <div class="improw${r.pick ? '' : ' off'}">
+        <input type="checkbox" id="imp-${i}" data-imp="${i}" ${r.pick ? 'checked' : ''} aria-label="Add ${esc(r.name)}">
+        <label for="imp-${i}" class="impdot">${dotHTML(r.cat)}</label>
+        <label for="imp-${i}" class="impname"><b>${esc(r.name)}</b>${r.note ? `<small>${esc(r.note)}</small>` : ''}${r.existing ? `<small class="impx">Already on your map</small>` : ''}</label>
+        <select data-impcat="${i}" aria-label="Type for ${esc(r.name)}">${CAT_KEYS.map(c => `<option value="${c}" ${r.cat === c ? 'selected' : ''}>${CATS[c].short || CATS[c].label}</option>`).join('')}</select>
+      </div>`).join('')}</div>
+    <div class="row"><button type="button" class="btn primary" data-impgo ${picked ? '' : 'disabled'}>Add ${picked} ${picked === 1 ? 'place' : 'places'}</button>
+      <button type="button" class="btn ghost" data-back>Cancel</button></div>
+    <p class="fine">Locations come straight from Google, so they’re exact. Re-import the same list later and only new places are added.</p></div>`;
+  $('#imp-tag').addEventListener('input', e => { view.tag = e.target.value; });
+}
+function doImport() {
+  const v = view, tag = v.tag.trim(), now = Date.now();
+  let n = 0;
+  for (const r of v.rows) {
+    if (!r.pick) continue;
+    const ex = existingFor(r);
+    const id = (ex && ex.id) || listPinId(r) || newId();
+    const p = cleanPlace({ ...(ex || {}), id, name: ex ? ex.name : r.name, cat: r.cat, note: (ex && ex.note) || r.note || r.address || '',
+      fav: ex ? ex.fav : false, exact: true, lat: r.lat, lng: r.lng, ideaId: ex ? ex.ideaId : null,
+      tags: [...((ex && ex.tags) || []), ...(tag ? [tag] : [])], createdAt: ex ? ex.createdAt : now, updatedAt: now });
+    const i = places.findIndex(x => x.id === p.id);
+    if (i >= 0) places[i] = p; else places.push(p);
+    sync.forgetDeleted(p.id); n++;
+  }
+  persist();
+  view = { kind: 'list' }; renderMap(); renderPanel(); setSheet('half'); fitAll();
+  toast(`Added ${n} ${n === 1 ? 'place' : 'places'} from “${v.list.name}”`);
+}
+
 /* ---------- sync panel + status ---------- */
 function ago(ts) {
   const s = Math.round((Date.now() - ts) / 1000);
@@ -565,6 +647,7 @@ function parseLoc(raw) {
   return null;
 }
 const isShortLink = s => /(maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/kgs)/i.test(s);
+const isListLink = s => /placelists\/list\/|!11m\d+!2s[A-Za-z0-9_-]{10,}/.test(s);
 const looksLikeLink = s => /https?:\/\//i.test(s) || /google\.[a-z.]+\/maps/i.test(s);
 const SHORT_HELP = 'Short share links can’t be opened yet (the link helper isn’t set up). In Google Maps, long-press the place (phone) or right-click it (computer) and copy the numbers like 18.7877, 98.9934, then paste those.';
 // Phone "Share → Copy" gives text like "Home Chiang Mai Hotel\nhttps://maps.app.goo.gl/AbC". Split it.
@@ -595,8 +678,8 @@ async function unfurl(short) {
     if (!res.ok) {
       const e = new Error(body.error || body.message || `HTTP ${res.status}`); e.status = res.status; throw e;
     }
-    unfurlCache.set(short, body.url);
-    return body.url;
+    unfurlCache.set(short, body);
+    return body;
   } finally { clearTimeout(t); }
 }
 function unfurlError(e) {
@@ -613,8 +696,10 @@ async function resolvePasted(text) {
   const pre = textBeforeUrl(text);
   if (direct) return { loc: { ...direct, name: direct.name || pre }, name: direct.name || pre };
   const link = urlIn(text) || text.trim();
-  if (!isShortLink(link)) return { loc: null, name: pre || linkName(link) };
-  const full = await unfurl(link);
+  if (!isShortLink(link) && !isListLink(link)) return { loc: null, name: pre || linkName(link) };
+  const got = await unfurl(link);
+  if (got.list) return { list: got.list };
+  const full = got.url || '';
   const loc = parseLoc(full);
   const name = (loc && loc.name) || pre || linkName(full);
   return { loc: loc ? { ...loc, name } : null, name };
@@ -626,7 +711,7 @@ function startLinkJob(text) {
   linkJob = { key, state: 'loading', loc: null, name: '', msg: '' };
   resolvePasted(text).then(r => {
     if (linkJob.key !== key) return;
-    linkJob = { key, state: 'done', loc: r.loc, name: r.name, msg: '' };
+    linkJob = { key, state: 'done', loc: r.loc || null, name: r.name || '', list: r.list || null, msg: '' };
     if (qEl.value.trim() === key) renderSearch();
   }).catch(e => {
     if (linkJob.key !== key) return;
@@ -732,12 +817,18 @@ function renderSearch() {
       html += optHTML(opts.length - 1, `<span class="dot hash">⌕</span>`, `Search for “${esc(name)}” instead`, 'Finds it on the map by name');
     };
     if (direct) exactOpt({ ...direct, name: direct.name || textBeforeUrl(q) });
-    else if (isShortLink(urlIn(q) || q)) {
+    else if (isShortLink(urlIn(q) || q) || isListLink(q)) {
       if (!linkHelperReady) html += `<div class="snote">${SHORT_HELP}</div>`;
       else {
         if (linkJob.key !== q.trim()) startLinkJob(q);
         if (linkJob.state === 'loading') html += `<div class="snote"><span class="spin" aria-hidden="true"></span>Opening the Google Maps link…</div>`;
         else if (linkJob.state === 'error') html += `<div class="snote">${esc(linkJob.msg)}</div>`;
+        else if (linkJob.list) {
+          const L = linkJob.list, n = L.places.length;
+          opts.push({ type: 'importlist', list: L });
+          html += '<h4>Google Maps list</h4>' + optHTML(opts.length - 1, `<span class="dot" style="background:var(--c-see)">${artSVG('see')}</span>`,
+            `Import “${esc(L.name)}”`, n ? `${n} ${n === 1 ? 'place' : 'places'} · pick which to add` : 'This list is empty');
+        }
         else if (linkJob.loc) exactOpt(linkJob.loc);
         else {
           html += `<div class="snote">That link opened, but Google didn’t include the exact location in it.${linkJob.name ? '' : ' Long-press the place in Google Maps and copy the numbers instead.'}</div>`;
@@ -807,6 +898,7 @@ function closeSearch() { sres.hidden = true; qEl.setAttribute('aria-expanded', '
 function choose(i) {
   const o = opts[i]; if (!o) return;
   closeSearch(); qEl.blur();
+  if (o.type === 'importlist') { qEl.value = ''; qClear.hidden = true; openImport(o.list); return; }
   if (o.type === 'searchname') { qEl.value = o.name; qEl.focus(); qEl.dispatchEvent(new Event('input')); return; }
   if (o.type === 'mine') { qEl.value = ''; qClear.hidden = true; openDetail(o.id, true); return; }
   if (o.type === 'tag') {
@@ -896,6 +988,9 @@ document.querySelector('.panel').addEventListener('click', e => {
     else filters.add(c);
     renderMap(); renderPanel(); return;
   }
+  const ia = t.closest('[data-impall]');
+  if (ia && view.kind === 'import') { const on = ia.dataset.impall === '1'; view.rows.forEach(r => { r.pick = on; }); renderPanel(); return; }
+  if (t.closest('[data-impgo]') && view.kind === 'import') { doImport(); return; }
   if (t.closest('[data-newcode]')) { sync.setCode(sync.newCode()); renderPanel(); toast('Trip code created. Now add your phone.'); return; }
   if (t.closest('[data-joincode]')) {
     const v = $('#f-code').value;
@@ -940,6 +1035,15 @@ document.querySelector('.panel').addEventListener('click', e => {
   if (t.closest('[data-delyes]')) { const id = draft.id; deletePlace(id); closeEditor(); toast('Pin deleted'); }
 });
 
+document.querySelector('.panel').addEventListener('change', e => {
+  if (view.kind !== 'import') return;
+  const t = e.target;
+  const pb = $('#pbody'), top = pb.scrollTop;
+  if (t.dataset.imp != null) view.rows[+t.dataset.imp].pick = t.checked;
+  else if (t.dataset.impcat != null) view.rows[+t.dataset.impcat].cat = t.value;
+  else return;
+  renderPanel(); renderMap(); pb.scrollTop = top;
+});
 // Another tab changed the pins → refresh.
 window.addEventListener('storage', e => { if (e.key === STORAGE_KEY) { load(); if (view.kind !== 'edit') { renderMap(); renderPanel(); } } });
 

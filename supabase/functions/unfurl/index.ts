@@ -46,5 +46,48 @@ Deno.serve(async (req) => {
     if (!loc) break;
     u = new URL(loc, u);
   }
+
+  // A shared saved list ("Want to go", custom lists): read its places.
+  const listId = listIdOf(u.toString());
+  if (listId) {
+    try {
+      return json({ url: u.toString(), list: await readList(listId) });
+    } catch (e) {
+      return json({ url: u.toString(), error: `Couldn't read that list (${(e as Error).message}). Make sure it's shared with "anyone with the link".` }, 502);
+    }
+  }
   return json({ url: u.toString() });
 });
+
+// List links look like …/maps/placelists/list/<ID> or …/data=…!11m2!2s<ID>!3e3…
+function listIdOf(s: string): string {
+  const m = s.match(/\/placelists\/list\/([A-Za-z0-9_-]{10,40})/) || s.match(/!11m\d+!2s([A-Za-z0-9_-]{10,40})/);
+  return m ? m[1] : "";
+}
+
+// Unofficial: this is the feed Google's own list page loads. It may change without notice.
+// Only the list name and each place's name, coordinates and note are passed on.
+async function readList(id: string) {
+  const pb = `!1m4!1s${id}!2e1!3m1!1e1!2e2!3e2!4i500!16b1`;
+  const res = await fetch(`https://www.google.com/maps/preview/entitylist/getlist?authuser=0&hl=en&gl=th&pb=${encodeURIComponent(pb)}`,
+    { headers: { "User-Agent": "Mozilla/5.0 (trip-map list reader)" } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const text = await res.text();
+  const data = JSON.parse(text.slice(text.indexOf("\n") + 1));   // strip the )]}' guard line
+  const L = data?.[0];
+  if (!Array.isArray(L)) throw new Error("unexpected format");
+  const places = [];
+  for (const it of Array.isArray(L[8]) ? L[8] : []) {
+    const info = it?.[1], ll = info?.[5], ids = info?.[6];
+    const lat = Number(ll?.[2]), lng = Number(ll?.[3]), name = String(it?.[2] ?? "").trim();
+    if (!name || !isFinite(lat) || !isFinite(lng)) continue;
+    places.push({
+      gid: Array.isArray(ids) ? ids.join(":") : "",
+      name: name.slice(0, 80),
+      lat, lng,
+      note: String(it?.[3] ?? "").slice(0, 2000),
+      address: String(info?.[4] ?? "").slice(0, 200),
+    });
+  }
+  return { id, name: String(L[4] ?? "Saved list").slice(0, 60), places };
+}

@@ -288,3 +288,19 @@ button{cursor:pointer}
   #addBtn span{display:none}
   #addBtn::after{content:"Add"}
 }
+
+/* ---------- list import ---------- */
+.imp #imp-tag{font-family:var(--f-hand);font-size:18px;padding:6px 12px}
+.improws{display:flex;flex-direction:column;gap:2px;border-top:1.5px dashed var(--line);border-bottom:1.5px dashed var(--line);padding:6px 0}
+.improw{display:grid;grid-template-columns:22px 40px minmax(0,1fr) auto;gap:8px;align-items:center;padding:5px 4px;border-radius:14px}
+.improw:hover{background:var(--paper-2)}
+.improw.off{opacity:.5}
+.improw input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent-dk);margin:0}
+.improw .impdot{cursor:pointer;display:flex}
+.improw .impdot .dot{width:40px;height:40px}
+.improw .impname{cursor:pointer;min-width:0}
+.improw .impname b{display:block;font-family:var(--f-hand);font-weight:400;font-size:18px;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.improw .impname small{display:block;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.improw .impname .impx{color:var(--accent-dk)}
+.improw select{font-family:var(--f-hand);font-size:15px;border:1.5px solid var(--line);background:var(--card);border-radius:10px;padding:3px 4px;max-width:96px}
+.btn[disabled]{opacity:.45;cursor:not-allowed;transform:none}

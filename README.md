@@ -61,6 +61,10 @@ The built-in search uses OpenStreetMap, which misses some small hotels and new s
 2. Name it exactly `unfurl`, replace the sample code with everything in `supabase/functions/unfurl/index.ts`, and click **Deploy**.
 3. Open the function's **Details** (or settings) and turn **off** "Verify JWT" / "Enforce JWT verification", then **Save**.
 
+**Import a whole saved list:** in Google Maps open the list → **Share** (set to "anyone with the link") → copy the link, paste it into the map's search and pick **Import**. Tick the places you want, check the guessed types, and add them. Re-importing the same list later only offers places that aren't on your map yet.
+
+> List import reads the same unofficial feed Google's own list page uses. It may stop working if Google changes it; single share links and coordinates keep working regardless. After editing `supabase/functions/unfurl/index.ts`, redeploy it in the Supabase dashboard (function → **Code** → paste → **Deploy**).
+
 The helper only follows links to Google, so it can't be used to fetch anything else. (Google's terms don't allow Google *search* results on a non-Google map, which is why the map doesn't search Google directly.)
 
 ## Project layout
