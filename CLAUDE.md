@@ -9,6 +9,7 @@ A personal Chiang Mai trip-planning map. Static site, **no build step, no npm de
 - Serve locally: `python3 -m http.server 8000`, then open http://localhost:8000
 - Syntax check: `node --check js/app.js && node --check js/data.js`
 - Deploy: GitHub Pages from `main` / root (`.nojekyll` is present).
+- **Before every deploy commit run `tools/bump-version.sh`.** It stamps `?v=` on the CSS/JS references in index.html and on the local imports in js/app.js and js/sync.js, so phones don't keep running a cached old version. New local imports must use the same `?v=` pattern (all imports of a module need the identical string, or the browser loads it twice).
 
 ## Architecture
 - **Map:** Leaflet + OpenFreeMap vector tiles via MapLibre GL (`maplibre-gl-leaflet`), drawn with our own style object from `js/mapstyle.js`. CARTO free tiles now need an API key, so don't go back to them.
