@@ -5,6 +5,7 @@
 import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR } from './data.js';
 import { watercolorStyle } from './mapstyle.js';
 import * as sync from './sync.js';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -314,7 +315,7 @@ function renderPanel() {
       <details class="how"><summary>How do I get these?</summary>
         <p><b>Computer:</b> in Google Maps, right-click the exact spot. The first line is the coordinates; click it to copy.</p>
         <p><b>Phone:</b> in Google Maps, long-press the exact spot to drop a pin. The coordinates show in the search bar; tap to copy.</p>
-        <p>Full Google Maps links from a browser work too. Short <i>maps.app.goo.gl</i> share links don’t.</p></details>
+        <p><b>Easiest:</b> in Google Maps tap <b>Share → Copy link</b> and paste it here.</p></details>
     </div>
     <label class="toggle" for="f-fav"><input type="checkbox" id="f-fav" ${p.fav ? 'checked' : ''}> Must-go</label>
     <div class="row"><button type="submit" class="btn primary">${isNew ? 'Save pin' : 'Save changes'}</button>
@@ -426,11 +427,21 @@ function updateLocUI(msg, ok, bad = false) {
   $('#f-coords').textContent = `${draft.lat.toFixed(5)}, ${draft.lng.toFixed(5)}`;
   $('#f-gmaps').href = gmapsLink(draft);
 }
-function applyLoc() {
+async function applyLoc() {
   const inp = $('#f-loc'); if (!inp || !draft) return;
   const v = inp.value.trim(); if (!v) { inp.focus(); return; }
-  const loc = parseLoc(v);
-  if (!loc) { updateLocUI(isShortLink(v) ? SHORT_HELP : 'Couldn’t read a location from that. Paste numbers like 18.7877, 98.9934 or a full Google Maps link.', false, true); return; }
+  let loc = parseLoc(v);
+  if (!loc && isShortLink(urlIn(v) || v)) {
+    if (!linkHelperReady) { updateLocUI(SHORT_HELP, false, true); return; }
+    const id = draft.id;
+    updateLocUI('Opening the Google Maps link…', false);
+    try { loc = (await resolvePasted(v)).loc; }
+    catch (e) { if (draft?.id === id) updateLocUI(unfurlError(e), false, true); return; }
+    if (draft?.id !== id) return;
+    if (!loc) { updateLocUI('That link opened, but it has no exact location. Long-press the place in Google Maps and paste the numbers instead.', false, true); return; }
+  }
+  if (!loc) { updateLocUI('Couldn’t read a location from that. Paste numbers like 18.7877, 98.9934, a Google Maps link, or a Share link.', false, true); return; }
+  if (!loc.name) loc.name = textBeforeUrl(v);
   draft.lat = loc.lat; draft.lng = loc.lng; draft.exact = loc.exact;
   if (!$('#f-name').value.trim() && loc.name) { $('#f-name').value = loc.name; draft.name = loc.name; }
   inp.value = '';
@@ -554,8 +565,75 @@ function parseLoc(raw) {
   return null;
 }
 const isShortLink = s => /(maps\.app\.goo\.gl|goo\.gl\/maps|g\.co\/kgs)/i.test(s);
-const looksLikeLink = s => /^https?:\/\//i.test(s.trim()) || /google\.[a-z.]+\/maps/i.test(s);
-const SHORT_HELP = 'Short share links can’t be opened from here. In Google Maps, right-click the place (computer) or long-press it (phone) and copy the numbers like 18.7877, 98.9934, then paste those.';
+const looksLikeLink = s => /https?:\/\//i.test(s) || /google\.[a-z.]+\/maps/i.test(s);
+const SHORT_HELP = 'Short share links can’t be opened yet (the link helper isn’t set up). In Google Maps, long-press the place (phone) or right-click it (computer) and copy the numbers like 18.7877, 98.9934, then paste those.';
+// Phone "Share → Copy" gives text like "Home Chiang Mai Hotel\nhttps://maps.app.goo.gl/AbC". Split it.
+const urlIn = s => (String(s).match(/https?:\/\/[^\s<>"']+/) || [])[0] || '';
+const textBeforeUrl = s => urlIn(s) ? String(s).split(/https?:\/\//)[0].replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+// A place name carried in ?q= / ?query= when the link has no coordinates.
+function linkName(url) {
+  try {
+    const u = new URL(url);
+    const q = u.searchParams.get('q') || u.searchParams.get('query') || '';
+    if (q && !/^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/.test(q)) return q.split(',')[0].trim().slice(0, 80);
+  } catch {}
+  return '';
+}
+
+// Short links (maps.app.goo.gl) are opened by the "unfurl" helper on Supabase,
+// because a browser page can't follow Google's redirects itself.
+const linkHelperReady = !!(SUPABASE_URL && SUPABASE_KEY);
+const unfurlCache = new Map();
+async function unfurl(short) {
+  if (unfurlCache.has(short)) return unfurlCache.get(short);
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 12000);
+  const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_KEY };
+  if (SUPABASE_KEY.startsWith('eyJ')) headers.Authorization = `Bearer ${SUPABASE_KEY}`;
+  try {
+    const res = await fetch(`${SUPABASE_URL.replace(/\/+$/, '')}/functions/v1/unfurl`, { method: 'POST', headers, body: JSON.stringify({ url: short }), signal: ctl.signal });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const e = new Error(body.error || body.message || `HTTP ${res.status}`); e.status = res.status; throw e;
+    }
+    unfurlCache.set(short, body.url);
+    return body.url;
+  } finally { clearTimeout(t); }
+}
+function unfurlError(e) {
+  if (e.status === 404) return 'The link helper isn’t installed on Supabase yet. See “Share links” in the README.';
+  if (e.status === 401 || e.status === 403) return 'The link helper refused the request. In Supabase, turn off JWT verification for the “unfurl” function.';
+  if (e.name === 'AbortError' || e instanceof TypeError) return navigator.onLine
+    ? 'Couldn’t open that link. If the link helper isn’t set up on Supabase yet, see “Share links” in the README.'
+    : 'You’re offline. Share links need a connection; pasted coordinates work offline.';
+  return 'Couldn’t open that link: ' + e.message;
+}
+// Resolve any pasted text (coords, full link, short link, share text) to {loc, name}.
+async function resolvePasted(text) {
+  const direct = parseLoc(text);
+  const pre = textBeforeUrl(text);
+  if (direct) return { loc: { ...direct, name: direct.name || pre }, name: direct.name || pre };
+  const link = urlIn(text) || text.trim();
+  if (!isShortLink(link)) return { loc: null, name: pre || linkName(link) };
+  const full = await unfurl(link);
+  const loc = parseLoc(full);
+  const name = (loc && loc.name) || pre || linkName(full);
+  return { loc: loc ? { ...loc, name } : null, name };
+}
+let linkJob = { key: '', state: 'idle', loc: null, name: '', msg: '' };
+function startLinkJob(text) {
+  const key = text.trim();
+  if (linkJob.key === key && linkJob.state !== 'idle') return;
+  linkJob = { key, state: 'loading', loc: null, name: '', msg: '' };
+  resolvePasted(text).then(r => {
+    if (linkJob.key !== key) return;
+    linkJob = { key, state: 'done', loc: r.loc, name: r.name, msg: '' };
+    if (qEl.value.trim() === key) renderSearch();
+  }).catch(e => {
+    if (linkJob.key !== key) return;
+    linkJob = { key, state: 'error', loc: null, name: '', msg: unfurlError(e) };
+    if (qEl.value.trim() === key) renderSearch();
+  });
+}
 
 /* ---------- search ---------- */
 const qEl = $('#q'), sres = $('#sres'), qClear = $('#qclear');
@@ -641,14 +719,37 @@ function renderSearch() {
   const q = qEl.value; qClear.hidden = !q;
   if (!q.trim()) { closeSearch(); return; }
   opts = []; let html = '';
-  const loc = parseLoc(q);
-  if (loc || isShortLink(q) || looksLikeLink(q)) {
-    if (loc) {
+  const direct = parseLoc(q);
+  if (direct || isShortLink(q) || looksLikeLink(q)) {
+    const pinDot = `<span class="dot" style="background:var(--c-eat)"><svg viewBox="0 0 24 24" aria-hidden="true" style="width:70%;height:70%"><path d="M12 21s-6-6.2-6-11a6 6 0 0 1 12 0c0 4.8-6 11-6 11z" fill="var(--accent-dk)"/><circle cx="12" cy="10" r="2.3" fill="var(--card)"/></svg></span>`;
+    const exactOpt = loc => {
       opts.push({ type: 'exact', loc });
-      html += '<h4>Exact spot</h4>' + optHTML(0, `<span class="dot" style="background:var(--accent)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6-6.2-6-11a6 6 0 0 1 12 0c0 4.8-6 11-6 11z" fill="var(--accent-ink)"/><circle cx="12" cy="10" r="2.3" fill="var(--accent)"/></svg></span>`,
+      html += '<h4>From your link</h4>' + optHTML(opts.length - 1, pinDot,
         `Drop a pin here${loc.name ? `: ${esc(loc.name)}` : ''}`, `${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}${loc.exact ? '' : ' · map view centre, may be slightly off'}`);
-    } else html += `<div class="snote">${isShortLink(q) ? SHORT_HELP : 'That link doesn’t include a location. ' + SHORT_HELP}</div>`;
-    show(html, loc ? 0 : -1); return;
+    };
+    const nameOpt = name => {
+      opts.push({ type: 'searchname', name });
+      html += optHTML(opts.length - 1, `<span class="dot hash">⌕</span>`, `Search for “${esc(name)}” instead`, 'Finds it on the map by name');
+    };
+    if (direct) exactOpt({ ...direct, name: direct.name || textBeforeUrl(q) });
+    else if (isShortLink(urlIn(q) || q)) {
+      if (!linkHelperReady) html += `<div class="snote">${SHORT_HELP}</div>`;
+      else {
+        if (linkJob.key !== q.trim()) startLinkJob(q);
+        if (linkJob.state === 'loading') html += `<div class="snote"><span class="spin" aria-hidden="true"></span>Opening the Google Maps link…</div>`;
+        else if (linkJob.state === 'error') html += `<div class="snote">${esc(linkJob.msg)}</div>`;
+        else if (linkJob.loc) exactOpt(linkJob.loc);
+        else {
+          html += `<div class="snote">That link opened, but Google didn’t include the exact location in it.${linkJob.name ? '' : ' Long-press the place in Google Maps and copy the numbers instead.'}</div>`;
+          if (linkJob.name) nameOpt(linkJob.name);
+        }
+      }
+    } else {
+      const name = textBeforeUrl(q) || linkName(urlIn(q));
+      html += `<div class="snote">That link doesn’t include a location. Long-press the place in Google Maps and copy the numbers like 18.7877, 98.9934, or use Share → Copy link.</div>`;
+      if (name) nameOpt(name);
+    }
+    show(html, opts.length ? 0 : -1); return;
   }
   // Your own pins and tags come first.
   const nq = norm(q.replace(/^#/, ''));
@@ -706,6 +807,7 @@ function closeSearch() { sres.hidden = true; qEl.setAttribute('aria-expanded', '
 function choose(i) {
   const o = opts[i]; if (!o) return;
   closeSearch(); qEl.blur();
+  if (o.type === 'searchname') { qEl.value = o.name; qEl.focus(); qEl.dispatchEvent(new Event('input')); return; }
   if (o.type === 'mine') { qEl.value = ''; qClear.hidden = true; openDetail(o.id, true); return; }
   if (o.type === 'tag') {
     qEl.value = ''; qClear.hidden = true;
@@ -728,7 +830,7 @@ function choose(i) {
   }
   openPreview(o.item, true);
 }
-qEl.addEventListener('input', () => { active = qEl.value.trim() ? 0 : -1; scheduleOSM(qEl.value); renderSearch(); });
+qEl.addEventListener('input', () => { active = qEl.value.trim() ? 0 : -1; if (!looksLikeLink(qEl.value)) scheduleOSM(qEl.value); renderSearch(); });
 qEl.addEventListener('focus', () => { setSheet('peek'); if (qEl.value.trim()) renderSearch(); });
 qEl.addEventListener('keydown', e => {
   if (e.key === 'ArrowDown') { e.preventDefault(); if (sres.hidden) renderSearch(); active = Math.min(active + 1, opts.length - 1); markActive(); }

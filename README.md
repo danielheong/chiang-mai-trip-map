@@ -48,6 +48,21 @@ Your pins are protected by the 20-character trip code, which only lives on your 
 
 **What syncs:** pins, notes, tags and must-go hearts. Design changes are part of the website itself, so every device gets them on its next load once they're published.
 
+## Share links from Google Maps (places the map can't find)
+
+The built-in search uses OpenStreetMap, which misses some small hotels and new spots. For those, copy the place from Google Maps and paste it into the search bar:
+
+- **Share link:** in Google Maps tap **Share → Copy link**, then paste. Short `maps.app.goo.gl` links need the one-time helper below.
+- **Coordinates:** long-press (phone) or right-click (computer) the spot in Google Maps, copy the numbers like `18.7877, 98.9934`, then paste. Works offline, no setup.
+
+**One-time helper setup (Supabase, about 2 minutes):**
+
+1. Supabase dashboard → **Edge Functions** → **Deploy a new function** → **Via Editor**.
+2. Name it exactly `unfurl`, replace the sample code with everything in `supabase/functions/unfurl/index.ts`, and click **Deploy**.
+3. Open the function's **Details** (or settings) and turn **off** "Verify JWT" / "Enforce JWT verification", then **Save**.
+
+The helper only follows links to Google, so it can't be used to fetch anything else. (Google's terms don't allow Google *search* results on a non-Google map, which is why the map doesn't search Google directly.)
+
 ## Project layout
 
 ```
@@ -59,6 +74,7 @@ js/mapstyle.js        the watercolor map colours
 js/sync.js            Supabase sync (merge per pin, newest edit wins)
 js/config.js          Supabase URL + public key (blank = sync off)
 supabase/setup.sql    one-time database setup
+supabase/functions/unfurl/index.ts   helper that opens Google Maps share links
 data/seed-pins.json   pins loaded once on a browser's first visit
 ```
 

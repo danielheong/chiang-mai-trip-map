@@ -18,6 +18,7 @@ A personal Chiang Mai trip-planning map. Static site, **no build step, no npm de
 - **Panel views:** `sync` (trip code) | `list` | `detail` (place card with Google Maps/Waze links) | `edit` (uses `draft`) | `preview` (search or idea result before adding).
 - **Search order:** pasted coords/Google Maps link → your tags (`#tag` filters) → your pins → built-in `DIR` matches → Photon (OSM) results, debounced 300 ms, filtered to 150 km around Chiang Mai.
 - **Sync:** `js/sync.js` calls Supabase RPCs `trip_get`/`trip_put` (see `supabase/setup.sql`) over plain fetch. Rows keyed by (trip code, pin id); newest `updatedAt` wins; deletes are tombstones (`cm-trip-map-deleted`); `cm-trip-map-known` tracks what the server has. Trip code lives in localStorage only; `#join=CODE` links a device. Always bump `updatedAt` via `savePlace`.
+- **Share links:** short Google Maps links are resolved by the Supabase Edge Function `unfurl` (`supabase/functions/unfurl/index.ts`, deployed by hand with JWT verification off); the app then parses coords/name from the full URL (`resolvePasted` in app.js). Google Places search is deliberately not used: Google's terms forbid Places content on a non-Google map.
 - **Export/Import:** JSON `{ app, version, exportedAt, places }`; import merges by `id`.
 
 ## Style
@@ -32,4 +33,3 @@ A personal Chiang Mai trip-planning map. Static site, **no build step, no npm de
 ## Ideas not built yet
 - Day-by-day itinerary (assign pins to days, draw each day's route).
 - Real routing/walking times between pins (OSRM or similar).
-- Google Places search (needs an API key with billing).
