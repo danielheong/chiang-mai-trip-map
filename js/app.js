@@ -2,10 +2,10 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611080115';
-import { watercolorStyle } from './mapstyle.js?v=202611080115';
-import * as sync from './sync.js?v=202611080115';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080115';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611080118';
+import { watercolorStyle } from './mapstyle.js?v=202611080118';
+import * as sync from './sync.js?v=202611080118';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080118';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -47,6 +47,13 @@ function km(a, b) {
 }
 let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 2600); }
+// A toast with an action button (e.g. Undo). Stays a little longer.
+function toastAction(msg, label, fn) {
+  const t = $('#toast'); t.textContent = msg + ' ';
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'toastbtn'; b.textContent = label;
+  b.addEventListener('click', () => { t.hidden = true; clearTimeout(toastT); fn(); });
+  t.appendChild(b); t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 6000);
+}
 
 /* ---------- state ---------- */
 let places = [];
@@ -528,6 +535,85 @@ function renderPanel() {
 
 
 
+
+/* ---------- quick-action menu (⋯ on list items) ---------- */
+let menuFor = null, menuBtn = null;
+const menuEl = document.createElement('div');
+menuEl.className = 'qmenu'; menuEl.id = 'qmenu'; menuEl.setAttribute('role', 'menu'); menuEl.hidden = true;
+document.body.appendChild(menuEl);
+function openMenu(btn) {
+  const p = places.find(x => x.id === btn.dataset.more); if (!p) return;
+  if (menuFor === p.id) { closeMenu(); return; }
+  closeMenu(); menuFor = p.id; menuBtn = btn; btn.setAttribute('aria-expanded', 'true');
+  const it = (act, label, icon, cls = '') => `<button type="button" role="menuitem" class="qi ${cls}" data-qa="${act}">${icon}<span>${label}</span></button>`;
+  const ic = d => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  menuEl.innerHTML = `<div class="qhead">${esc(shortName(p.name))}</div>
+    ${viewOnly ? '' : it('edit', 'Edit', ic('<path d="M4 20h4L19 9l-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'))}
+    ${viewOnly ? '' : it('visit', p.visited ? 'Mark as not visited' : 'Mark as visited', ic('<path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'))}
+    ${viewOnly ? '' : it('fav', p.fav ? 'Remove must-go' : 'Make must-go', ic('<path d="M12 20.5 4.2 13A4.8 4.8 0 0 1 12 6.8a4.8 4.8 0 0 1 7.8 6.2z" fill="' + (p.fav ? 'currentColor' : 'none') + '" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'))}
+    ${viewOnly ? '' : `<label class="qi qday">${ic('<rect x="4" y="5.5" width="16" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 10h16M9 3.5v4M15 3.5v4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>')}<span>Plan for</span><select data-setday="${esc(p.id)}" aria-label="Plan ${esc(p.name)} for which day">${dayOptions(p.day)}</select></label>`}
+    ${it('show', 'Show on map', ic('<path d="M12 21s-6.5-6.4-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.6 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="9.8" r="2.3" fill="currentColor"/>'))}
+    <a role="menuitem" class="qi" href="${gmapsDirLink(p)}" target="_blank" rel="noopener">${ic('<path d="M4 12h12M12 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>')}<span>Google Maps directions</span></a>
+    <a role="menuitem" class="qi" href="${wazeLink(p)}" target="_blank" rel="noopener">${ic('<path d="M4 12h12M12 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>')}<span>Waze directions</span></a>
+    ${viewOnly ? '' : `<div class="qsep"></div>` + it('del', 'Delete…', ic('<path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>'), 'danger')}`;
+  menuEl.hidden = false;
+  placeMenu();
+  menuEl.querySelector('.qi')?.focus({ preventScroll: true });
+}
+function placeMenu() {
+  if (!menuBtn || menuEl.hidden) return;
+  const r = menuBtn.getBoundingClientRect(), w = menuEl.offsetWidth, h = menuEl.offsetHeight, vw = innerWidth, vh = innerHeight;
+  let left = Math.min(vw - w - 8, Math.max(8, r.right - w)), top = r.bottom + 4;
+  if (top + h > vh - 8) top = Math.max(8, r.top - h - 4);
+  menuEl.style.left = left + 'px'; menuEl.style.top = top + 'px';
+}
+function closeMenu(focusBack = false) {
+  if (menuEl.hidden) return;
+  menuEl.hidden = true; menuBtn?.setAttribute('aria-expanded', 'false');
+  if (focusBack) menuBtn?.focus({ preventScroll: true });
+  menuFor = null; menuBtn = null;
+}
+function deleteWithUndo(id) {
+  const p = places.find(x => x.id === id); if (!p) return;
+  const copy = { ...p };
+  deletePlace(id);
+  if (view.kind === 'detail' && view.id === id) view = { kind: 'list' };
+  renderMap(); renderPanel();
+  toastAction(`Deleted “${shortName(copy.name)}”.`, 'Undo', () => { savePlace(copy); renderMap(); renderPanel(); toast('Restored'); });
+}
+menuEl.addEventListener('click', e => {
+  const b = e.target.closest('[data-qa]'); if (!b) { if (e.target.closest('a')) closeMenu(); return; }
+  const id = menuFor, p = places.find(x => x.id === id); if (!p) { closeMenu(); return; }
+  const act = b.dataset.qa;
+  if (act === 'del') {
+    b.outerHTML = `<div class="qconfirm"><span>Delete “${esc(shortName(p.name))}”?</span><button type="button" class="btn danger" data-qa="delyes">Delete</button></div>`;
+    placeMenu(); menuEl.querySelector('[data-qa="delyes"]')?.focus(); return;
+  }
+  closeMenu();
+  if (act === 'edit') { openEditor({ ...p }); flyVis([p.lat, p.lng], Math.max(map.getZoom(), 16), { duration: .6 }); }
+  else if (act === 'visit') { updatePlace(id, { visited: !p.visited }); toast(p.visited ? 'Marked as not visited' : 'Marked as visited ✓'); renderMap(); renderPanel(); }
+  else if (act === 'fav') { updatePlace(id, { fav: !p.fav }); toast(p.fav ? 'Removed from must-go' : 'Added to must-go ♥'); renderMap(); renderPanel(); }
+  else if (act === 'show') { openDetail(id, true); }
+  else if (act === 'delyes') deleteWithUndo(id);
+});
+menuEl.addEventListener('change', e => {
+  const sd = e.target.closest('[data-setday]'); if (!sd) return;
+  const d = pickDay(sd.value);
+  updatePlace(sd.dataset.setday, { day: d, order: d ? nextOrder(d, sd.dataset.setday) : 0 });
+  closeMenu(); toast(d ? `Planned for Day ${d}` : 'Removed from the plan'); renderMap(); renderPanel();
+});
+menuEl.addEventListener('keydown', e => {
+  const items = [...menuEl.querySelectorAll('.qi, .qconfirm .btn')];
+  const i = items.indexOf(document.activeElement);
+  if (e.key === 'Escape') { e.preventDefault(); closeMenu(true); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+  else if (e.key === 'Tab') closeMenu();
+});
+document.addEventListener('pointerdown', e => { if (!menuEl.hidden && !e.target.closest('#qmenu, [data-more]')) closeMenu(); });
+addEventListener('resize', () => closeMenu());
+$('#pbody').addEventListener('scroll', () => closeMenu(), { passive: true });
+
 /* ---------- day plans ---------- */
 const DAY_COLORS = ['#D9776A', '#5F9AA8', '#D9A53A', '#6F9A55', '#A77DB8', '#D9739A', '#5E7FC4', '#A8805F'];
 const dayColor = d => DAY_COLORS[(d - 1) % DAY_COLORS.length];
@@ -651,7 +737,7 @@ function itemHTML(p, dist, extra = '') {
     ${dotFor(p)}
     <span style="min-width:0"><span class="nm"><span>${esc(p.name)}</span>${p.fav ? '<svg class="heart" width="13" height="13" viewBox="0 0 24 24" aria-label="Must-go"><path d="M12 21 3.5 12.7A5.2 5.2 0 0 1 12 6a5.2 5.2 0 0 1 8.5 6.7z" fill="currentColor"/></svg>' : ''}${p.visited ? '<span class="vt" aria-label="Visited">✓</span>' : ''}</span>
     ${p.note ? `<span class="nt">${esc(p.note)}</span>` : ''}${p.tags?.length || st || p.price ? `<span class="tgs">${st ? `<span class="os ${st.open === true ? 'is-open' : st.open === false ? 'is-closed' : ''}">${st.open === true ? 'Open' : st.open === false ? 'Closed' : 'Hours'}</span>` : ''}${p.price ? `<span class="pr">${PRICE[p.price]}</span>` : ''}${tagChips(p.tags)}</span>` : ''}</span>
-    <span class="km">${dist}${p.exact ? '' : '<span class="approx" title="Approximate spot. Open it and paste exact coordinates.">≈ approx</span>'}</span></button>${extra}</div>`;
+    <span class="km">${dist}${p.exact ? '' : '<span class="approx" title="Approximate spot. Open it and paste exact coordinates.">≈ approx</span>'}</span></button>${extra}<button type="button" class="more" data-more="${esc(p.id)}" aria-label="More actions for ${esc(p.name)}" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button></div>`;
 }
 function listBody() {
   const shown = places.filter(p => filters.has(p.cat) && hasTagMatch(p) && !(hideVisited && p.visited));
@@ -1474,6 +1560,7 @@ document.querySelector('.panel').addEventListener('click', e => {
   const ia = t.closest('[data-impall]');
   if (ia && view.kind === 'import') { const on = ia.dataset.impall === '1'; view.rows.forEach(r => { r.pick = on; }); renderPanel(); return; }
   if (t.closest('[data-impgo]') && view.kind === 'import') { doImport(); return; }
+  const mb = t.closest('[data-more]'); if (mb) { openMenu(mb); return; }
   if (t.closest('[data-offline]')) { saveOffline(); return; }
   if (t.closest('[data-viewlink]')) { copyViewLink(); return; }
   if (t.closest('[data-newcode]')) { sync.setCode(sync.newCode()); renderPanel(); toast('Trip code created. Now add your phone.'); return; }
@@ -1517,7 +1604,7 @@ document.querySelector('.panel').addEventListener('click', e => {
     return;
   }
   if (t.closest('[data-delno]')) { renderPanel(); return; }
-  if (t.closest('[data-delyes]')) { const id = draft.id; deletePlace(id); closeEditor(); toast('Pin deleted'); }
+  if (t.closest('[data-delyes]')) { const id = draft.id; draft = null; view = { kind: 'list' }; setMode('browse'); deleteWithUndo(id); setSheet('half'); }
 });
 
 document.querySelector('.panel').addEventListener('change', e => {

@@ -12,6 +12,7 @@ A hand-painted-style map for planning a Chiang Mai trip: pastel watercolor stree
 - **Place cards:** click a pin to see its notes and tags, with one-tap **Google Maps** and **Waze** directions.
 - **Search your own pins** by name, note or tag, alongside places and OpenStreetMap results.
 - **You are here:** the locate button shows your position; **Near me** sorts your pins by distance.
+- **Quick actions:** the **⋯** next to each place in the list opens Edit, Mark as visited, Must-go, Plan for a day, Show on map, Google Maps/Waze directions and Delete (with Undo).
 - **Visited:** tick places off; visited pins fade on the map and can be hidden.
 - **Day plans:** add as many days as you need, set the trip's start date (days show real dates and **Today**), name each day, and fill it with **+ Add places**. Every day has its own colour, badge and dotted route; tap a day chip to see just that day.
 - **Per-pin details:** your own icon (lanterns, martini, elephant…), price (฿–฿฿฿฿) and opening hours with an "Open now / Closed" hint in Chiang Mai time.

@@ -425,3 +425,20 @@ button{cursor:pointer}
 .dayact .tclear{margin-left:auto}
 .group.day .stopn{background:var(--dc);color:#fff}
 .pinicon .dbadge{position:absolute;left:calc(24px - 27px * var(--ps));top:calc(40px - 46px * var(--ps));min-width:18px;height:18px;padding:0 4px;border-radius:9px;color:#fff;font-family:var(--f-hand);font-size:13px;line-height:18px;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.3);border:1.5px solid #fff}
+
+/* ---------- ⋯ quick-action menu ---------- */
+.itemrow .more{flex:none;width:34px;height:34px;border:0;background:none;border-radius:50%;display:grid;place-items:center;color:var(--muted);align-self:flex-start;margin-top:8px}
+.itemrow .more:hover,.itemrow .more[aria-expanded="true"]{background:var(--paper-2);color:var(--ink)}
+.itemrow .more svg{width:18px;height:18px}
+.qmenu{position:fixed;z-index:4000;width:232px;max-width:calc(100vw - 16px);background:var(--card);background-image:var(--grain);background-size:300px;border:1.5px solid var(--line);border-radius:16px;box-shadow:0 12px 32px rgba(74,64,54,.25);padding:6px}
+.qhead{font-family:var(--f-hand);font-size:15px;color:var(--muted);padding:4px 10px 6px;border-bottom:1.5px dashed var(--line);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qi{width:100%;display:flex;align-items:center;gap:10px;border:0;background:none;border-radius:10px;padding:8px 10px;font-family:var(--f-hand);font-size:17px;color:var(--ink);text-align:left;text-decoration:none;cursor:pointer}
+.qi:hover,.qi:focus-visible{background:var(--paper-2);outline:none}
+.qi svg{width:18px;height:18px;flex:none;color:var(--sage-dk)}
+.qi.danger,.qi.danger svg{color:var(--danger)}
+.qday select{margin-left:auto;font-family:var(--f-hand);font-size:15px;border:1.5px solid var(--line);background:var(--card);border-radius:8px;padding:2px 4px;max-width:104px;color:var(--ink)}
+.qsep{height:0;border-top:1.5px dashed var(--line);margin:4px 6px}
+.qconfirm{display:flex;align-items:center;gap:8px;padding:6px 8px;font-family:var(--f-hand);font-size:16px;color:var(--danger)}
+.qconfirm span{flex:1;min-width:0}
+.qconfirm .btn{padding:4px 12px;font-size:15px}
+.toastbtn{margin-left:8px;border:0;background:var(--paper);color:var(--ink);border-radius:999px;padding:2px 12px;font-family:var(--f-hand);font-size:16px}
