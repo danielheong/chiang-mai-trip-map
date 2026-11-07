@@ -1,0 +1,19 @@
+{
+  "app": "chiang-mai-trip-map",
+  "version": 1,
+  "note": "Loaded once on a browser's first visit. Your real pins live in the browser after that; use Export/Import to move them.",
+  "places": [
+    {
+      "id": "pmw64l61x2mj2",
+      "name": "Baan Kang Wat",
+      "cat": "shop",
+      "note": "Little artists’ village with workshops, studios and cafes.",
+      "fav": false,
+      "exact": false,
+      "lat": 18.7768,
+      "lng": 98.9462,
+      "ideaId": "kangwat",
+      "createdAt": 1794039148005
+    }
+  ]
+}
