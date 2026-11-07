@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Patrick+Hand&family=Nunito:wght@400;600;700&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="css/style.css?v=202611080049">
+  <link rel="stylesheet" href="css/style.css?v=202611080103">
 </head>
 <body>
   <!-- Shared watercolor filters: soft wobbly edges + pigment pooling. Used by pins and dots. -->
@@ -67,6 +67,9 @@
         </button>
       </div>
       <div class="ovl banner" id="banner" hidden><span id="bannerText">Tap the map where it is</span><button type="button" id="bannerCancel">Cancel</button></div>
+      <div class="ovl locbtn"><button type="button" id="locBtn" aria-label="Show where I am" title="Show where I am" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button></div>
       <div class="ovl fitbtn"><button type="button" id="zfit" aria-label="Show all pins" title="Show all pins">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button></div>
@@ -84,6 +87,6 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
-  <script type="module" src="js/app.js?v=202611080049"></script>
+  <script type="module" src="js/app.js?v=202611080103"></script>
 </body>
 </html>

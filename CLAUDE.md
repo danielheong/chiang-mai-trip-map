@@ -15,12 +15,16 @@ A personal Chiang Mai trip-planning map. Static site, **no build step, no npm de
 - **Map:** Leaflet + OpenFreeMap vector tiles via MapLibre GL (`maplibre-gl-leaflet`), drawn with our own style object from `js/mapstyle.js`. CARTO free tiles now need an API key, so don't go back to them.
 - **Pins:** `L.divIcon` painted SVGs from `CATS[cat].art` (`js/data.js`) with `--c-<cat>` wash colours. Night = martini glass, Other = quiet flower.
 - **State:** `places` array in localStorage key `cm-trip-map-places`. Place shape:
-  `{ id, name, cat, note, fav, exact, lat, lng, ideaId, createdAt, tags[] }`. `exact` = location came from OSM search, coordinates or a Google Maps link (vs. built-in/hand-placed).
+  `{ id, name, cat, note, fav, exact, lat, lng, ideaId, createdAt, updatedAt, tags[], visited, day, order, icon, hours{open,close,closed[]}, price }`. `icon` overrides the category art (keys of `CATS` or `EXTRA_ICONS`); hours are Chiang Mai time (`openStatus`, UTC+7). `exact` = location came from OSM search, coordinates or a Google Maps link (vs. built-in/hand-placed).
 - **Panel views:** `sync` (trip code) | `list` | `detail` (place card with Google Maps/Waze links) | `edit` (uses `draft`) | `preview` (search or idea result before adding).
 - **Search order:** pasted coords/Google Maps link → your tags (`#tag` filters) → your pins → built-in `DIR` matches → Photon (OSM) results, debounced 300 ms, filtered to 150 km around Chiang Mai.
 - **Sync:** `js/sync.js` calls Supabase RPCs `trip_get`/`trip_put` (see `supabase/setup.sql`) over plain fetch. Rows keyed by (trip code, pin id); newest `updatedAt` wins; deletes are tombstones (`cm-trip-map-deleted`); `cm-trip-map-known` tracks what the server has. Trip code lives in localStorage only; `#join=CODE` links a device. Always bump `updatedAt` via `savePlace`.
 - **Share links:** short Google Maps links are resolved by the Supabase Edge Function `unfurl` (`supabase/functions/unfurl/index.ts`, deployed by hand with JWT verification off); the app then parses coords/name from the full URL (`resolvePasted` in app.js). Google Places search is deliberately not used: Google's terms forbid Places content on a non-Google map.
 - **List import:** `unfurl` also detects shared saved-list links and reads Google's unofficial `maps/preview/entitylist/getlist` feed (list name + each place's name/coords/note). The `import` panel view lets the user tick places and fix guessed categories (`guessCat`); pin ids are `g<cid parts>` so re-imports don't duplicate. The user chose this knowing it's unofficial and may break.
+- **List modes:** `listMode` = type | near | days. Location starts only from the locate button (`startLocate`). Days use `p.day` + `p.order`; `dayFocus` filters the map and `renderRoute` draws the dotted path.
+- **Offline:** `sw.js` (network-first page, cache-first versioned assets/libs/tiles, tile index network-first). `saveOffline()` pre-fetches ~200 tiles for the city (z10–14) and province (z8–11). The in-app preview browser can't register service workers, so test offline on a real browser.
+- **View-only:** `#view=CODE` sets `viewOnly`: pins load from `trip_view_get` (`supabase/share.sql`), nothing persists, editing UI is hidden by `.viewonly` CSS.
+- **Keep-awake:** `.github/workflows/keep-supabase-awake.yml` pings `trip_get` every 3 days.
 - **Export/Import:** JSON `{ app, version, exportedAt, places }`; import merges by `id`.
 
 ## Style
@@ -34,5 +38,4 @@ A personal Chiang Mai trip-planning map. Static site, **no build step, no npm de
 - The map needs requestAnimationFrame, so it stays blank in a hidden/background browser tab; that's not a bug.
 
 ## Ideas not built yet
-- Day-by-day itinerary (assign pins to days, draw each day's route).
 - Real routing/walking times between pins (OSRM or similar).

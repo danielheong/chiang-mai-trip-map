@@ -11,6 +11,12 @@ A hand-painted-style map for planning a Chiang Mai trip: pastel watercolor stree
 - **Tags:** add your own tags to any pin (e.g. `Day 1`, `Booked`, `Rainy day`), filter the map by tag, or type `#tag` in search.
 - **Place cards:** click a pin to see its notes and tags, with one-tap **Google Maps** and **Waze** directions.
 - **Search your own pins** by name, note or tag, alongside places and OpenStreetMap results.
+- **You are here:** the locate button shows your position; **Near me** sorts your pins by distance.
+- **Visited:** tick places off; visited pins fade on the map and can be hidden.
+- **Day plans:** put pins on Day 1, Day 2…, reorder stops, and **Show route** draws that day's path.
+- **Per-pin details:** your own icon (lanterns, martini, elephant…), price (฿–฿฿฿฿) and opening hours with an "Open now / Closed" hint in Chiang Mai time.
+- **Works offline:** the app and any map you've viewed stay on your phone; **Sync → Save Chiang Mai for offline** saves the whole area (a few MB).
+- **Share:** your trip code lets friends plan with you; a **view-only link** lets others look without changing anything (needs `supabase/share.sql`, see below).
 - **Pin types:** Stay, Sight, Eat, Café, Shop, Nature, Night, Other, with notes and a must-go heart. Drag any pin to move it.
 - **Distances from your stay** on every pin (straight line).
 - **Ideas layer:** dotted markers for classic spots you can add in one tap.
@@ -67,6 +73,14 @@ The built-in search uses OpenStreetMap, which misses some small hotels and new s
 
 The helper only follows links to Google, so it can't be used to fetch anything else. (Google's terms don't allow Google *search* results on a non-Google map, which is why the map doesn't search Google directly.)
 
+## View-only share links (one-time setup)
+
+Supabase → **SQL Editor** → **New query**, paste all of `supabase/share.sql`, **Run**. Then in the map: **Sync → Copy view-only link**.
+
+## Keeping Supabase awake
+
+Free Supabase projects pause after about a week without use. `.github/workflows/keep-supabase-awake.yml` makes one tiny request every 3 days so that never happens. GitHub may switch scheduled workflows off after 60 days with no commits; re-enable it in the repo's **Actions** tab if so.
+
 ## Project layout
 
 ```
@@ -78,6 +92,8 @@ js/mapstyle.js        the watercolor map colours
 js/sync.js            Supabase sync (merge per pin, newest edit wins)
 js/config.js          Supabase URL + public key (blank = sync off)
 supabase/setup.sql    one-time database setup
+supabase/share.sql    view-only share links
+sw.js                 offline support (service worker)
 supabase/functions/unfurl/index.ts   helper that opens Google Maps share links
 data/seed-pins.json   pins loaded once on a browser's first visit
 ```

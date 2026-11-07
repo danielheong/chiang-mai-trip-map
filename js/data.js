@@ -71,6 +71,42 @@ export const CATS = {
      <circle cx="24" cy="23" r="4.6" fill="#E2B857" ${K}/>` },
 };
 export const CAT_KEYS = Object.keys(CATS);
+// Extra icons you can pick per pin (on top of the category icons).
+export const EXTRA_ICONS = {
+  lanterns: { label: 'Lanterns', art:
+    `<circle cx="14" cy="24" r="10.5" fill="#F6D98C" opacity=".45"/><circle cx="32.5" cy="27.5" r="12" fill="#F6D98C" opacity=".45"/>
+     <path d="M2.5 8.5Q24 18.5 45.5 8.5" ${N}/>
+     <path d="M14 12.6V16M32.5 14.6v4" ${N}/>
+     <ellipse cx="14" cy="24" rx="6" ry="8" fill="#E7A33E" ${K}/>
+     <path d="M14 16.2v15.6M10.6 18.4c-1.6 3.6-1.6 7.6 0 11.2M17.4 18.4c1.6 3.6 1.6 7.6 0 11.2" fill="none" stroke="#4A4036" stroke-width=".8" opacity=".5"/>
+     <ellipse cx="32.5" cy="27.5" rx="7" ry="9" fill="#E58C7E" ${K}/>
+     <path d="M32.5 18.6v17.8M28.6 21c-1.8 4.2-1.8 8.8 0 13M36.4 21c1.8 4.2 1.8 8.8 0 13" fill="none" stroke="#4A4036" stroke-width=".8" opacity=".5"/>
+     <path d="M11.5 16.4h5M11.5 31.6h5M29.6 18.8h5.8M29.6 36.2h5.8M14 31.8v4.2M32.5 36.5v4.5" ${N}/>` },
+  songthaew: { label: 'Songthaew', art:
+    `<path d="M18 17.5h22.5a2 2 0 0 1 2 2V34H18z" fill="#D9604F" ${K}/>
+     <path d="M18.5 15.5h24" ${N}/>
+     <path d="M21 21h18.5v5.5H21z" fill="#F7EFE0" ${K}/>
+     <path d="M5.5 34v-8l4.5-6.5h8V34z" fill="#D9604F" ${K}/>
+     <path d="M10.8 21.6H16v5.2H8.2z" fill="#CFE3E6" ${K}/>
+     <path d="M4.5 34h39" ${N}/>
+     <circle cx="12.5" cy="35.5" r="4" fill="#4A4036"/><circle cx="12.5" cy="35.5" r="1.5" fill="#F7EFE0"/>
+     <circle cx="35" cy="35.5" r="4" fill="#4A4036"/><circle cx="35" cy="35.5" r="1.5" fill="#F7EFE0"/>` },
+  heart: { label: 'Heart', art:
+    `<path d="M24 41 9.5 27A9 9 0 0 1 24 15.2 9 9 0 0 1 38.5 27z" fill="#E58C7E" ${K}/>
+     <path d="M15 23.5a4.5 4.5 0 0 1 5-4" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" opacity=".8"/>` },
+  star: { label: 'Star', art:
+    `<path d="M24 7l5 10.6 11.6 1.4-8.6 8 2.3 11.5L24 32.8l-10.3 5.7L16 27l-8.6-8 11.6-1.4z" fill="#F2D37A" ${K}/>` },
+  camera: { label: 'Photo spot', art:
+    `<path d="M8 17h8l3-4.5h10l3 4.5h8v20H8z" fill="#C9D9DC" ${K}/>
+     <circle cx="24" cy="27" r="7" fill="#F7EFE0" ${K}/><circle cx="24" cy="27" r="3.6" fill="#7FAEB5" ${K}/>
+     <path d="M34 21h3" ${N}/>` },
+  elephant: { label: 'Elephant', art:
+    `<path d="M12 38V27c0-7 5-12 13-12 7 0 12 4 13 10 1.6 1 2.6 3 2.6 5.5V38h-5v-5h-4v5h-5v-5h-4v5h-5.6z" fill="#B7B4BE" ${K}/>
+     <path d="M12 28c-3 1-4.5 4-4 8.5 1.6.6 3 .2 3.6-1" fill="#B7B4BE" ${K}/>
+     <path d="M19 20c-3 0-5 3-4.5 7 2 .6 4.2-.6 5.3-2.6" fill="#CFCBD6" ${K}/>
+     <circle cx="16.5" cy="24" r="1.1" fill="#4A4036"/>` },
+};
+
 
 export const IDEAS = [
   { id:'doisuthep', name:'Wat Phra That Doi Suthep', cat:'see', lat:18.8048, lng:98.9216, blurb:'The golden chedi up on the mountain, reached by a long naga staircase. Go early for cooler air and city views.' },

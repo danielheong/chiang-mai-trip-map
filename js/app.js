@@ -2,10 +2,10 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR } from './data.js?v=202611080049';
-import { watercolorStyle } from './mapstyle.js?v=202611080049';
-import * as sync from './sync.js?v=202611080049';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080049';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611080103';
+import { watercolorStyle } from './mapstyle.js?v=202611080103';
+import * as sync from './sync.js?v=202611080103';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080103';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -18,6 +18,25 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const col = c => `var(--c-${c})`;
 const artSVG = (c, cls = '') => `<svg class="${cls}" viewBox="0 0 48 48" aria-hidden="true"><g filter="url(#wc)">${(CATS[c] || CATS.other).art}</g></svg>`;
 const dotHTML = c => `<span class="dot" style="background:${col(c)}">${artSVG(c)}</span>`;
+// A pin can override its category icon (p.icon): any category icon or an extra one.
+const ICONS = { ...Object.fromEntries(Object.keys(CATS).map(c => [c, { label: CATS[c].short || CATS[c].label, art: CATS[c].art }])), ...EXTRA_ICONS };
+const artOf = p => (p && p.icon && ICONS[p.icon] ? ICONS[p.icon].art : (CATS[p?.cat] || CATS.other).art);
+const svgArt = (art, cls = '') => `<svg class="${cls}" viewBox="0 0 48 48" aria-hidden="true"><g filter="url(#wc)">${art}</g></svg>`;
+const dotFor = p => `<span class="dot" style="background:${col(p.cat)}">${svgArt(artOf(p))}</span>`;
+const PRICE = ['', '฿', '฿฿', '฿฿฿', '฿฿฿฿'];
+const DAYNAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// Open/closed in Chiang Mai time (UTC+7), from the hours you entered.
+function openStatus(p) {
+  const h = p.hours; if (!h) return null;
+  const now = new Date(Date.now() + 7 * 3600e3), dow = now.getUTCDay(), mins = now.getUTCHours() * 60 + now.getUTCMinutes();
+  const toM = t => t ? +t.slice(0, 2) * 60 + +t.slice(3) : null;
+  const o = toM(h.open), c = toM(h.close);
+  if (h.closed.includes(dow) && !(o != null && c != null && c < o && mins < c)) return { open: false, text: 'Closed today' };
+  if (o == null || c == null) return h.closed.length ? { open: null, text: `Closed ${h.closed.map(d => DAYNAMES[d]).join(', ')}` } : null;
+  const open = c > o ? mins >= o && mins < c : mins >= o || mins < c;
+  if (open) { const left = (c - mins + 1440) % 1440; return { open: true, text: left <= 60 ? `Open · closes soon (${h.close})` : `Open now · until ${h.close}` }; }
+  return { open: false, text: `Closed · opens ${h.open}` };
+}
 const newId = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const isMobile = () => window.matchMedia('(max-width:860px)').matches;
 function km(a, b) {
@@ -31,14 +50,22 @@ function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = fal
 
 /* ---------- state ---------- */
 let places = [];
+// View-only mode: opened from a share link (#view=CODE). Pins come from the trip, nothing is saved.
+const VIEW_CODE = (location.hash.match(/^#view=([A-Za-z0-9-]{16,40})$/) || [])[1]?.replace(/-/g, '') || '';
+const viewOnly = !!VIEW_CODE;
+if (viewOnly) document.documentElement.classList.add('viewonly');
 let mode = 'browse';            // browse | adding
 let view = { kind: 'list' };    // list | edit | preview {item}
 let draft = null;
 let filters = new Set(CAT_KEYS);
 let tagFilter = new Set();      // lower-cased tags; empty = show all
+let listMode = 'type';          // type | near | days
+let hideVisited = false;
+let dayFocus = null;            // a day number to show only that day's stops (and its route)
+let me = null;                  // { lat, lng, acc } from the phone's location
 let showIdeas = false;   // built-in suggestions are opt-in (Ideas button), to keep the map calm
 const hasTagMatch = p => !tagFilter.size || (p.tags || []).some(t => tagFilter.has(t.toLowerCase()));
-const visible = p => filters.has(p.cat) && hasTagMatch(p);
+const visible = p => filters.has(p.cat) && hasTagMatch(p) && !(hideVisited && p.visited) && (dayFocus == null || p.day === dayFocus);
 let bounceId = null;
 
 /* ---------- storage ---------- */
@@ -48,6 +75,7 @@ function load() {
   places = places.map(cleanPlace).filter(Boolean);   // fills in fields added later (tags, updatedAt)
 }
 function persist() {
+  if (viewOnly) return;
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(places)); }
   catch { toast('Couldn’t save in this browser. Use Export to keep a copy.'); }
   sync.schedule();
@@ -75,7 +103,20 @@ function cleanPlace(p) {
     ideaId: typeof p.ideaId === 'string' ? p.ideaId : null, createdAt: +p.createdAt || Date.now(),
     tags: cleanTags(p.tags),
     updatedAt: +p.updatedAt || +p.createdAt || Date.now(),
+    visited: !!p.visited,
+    day: Number.isInteger(+p.day) && +p.day >= 1 && +p.day <= 30 && p.day !== null && p.day !== '' ? +p.day : null,
+    order: isFinite(+p.order) ? +p.order : 0,
+    icon: typeof p.icon === 'string' && p.icon ? p.icon.slice(0, 20) : null,
+    hours: cleanHours(p.hours),
+    price: Number.isInteger(+p.price) && +p.price >= 0 && +p.price <= 4 ? +p.price : 0,
   };
+}
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+function cleanHours(h) {
+  if (!h || typeof h !== 'object') return null;
+  const open = HHMM.test(h.open) ? h.open : '', close = HHMM.test(h.close) ? h.close : '';
+  const closed = Array.isArray(h.closed) ? [...new Set(h.closed.map(Number).filter(d => d >= 0 && d <= 6))] : [];
+  return open || close || closed.length ? { open, close, closed } : null;
 }
 function cleanTags(t) {
   if (!Array.isArray(t)) return [];
@@ -86,7 +127,7 @@ function cleanTags(t) {
   }
   return out.slice(0, 12);
 }
-const PRESET_TAGS = ['Day 1', 'Day 2', 'Day 3', 'Booked', 'Want to try', 'Rainy day', 'Sunset', 'Cheap eats'];
+const PRESET_TAGS = ['Booked', 'Want to try', 'Rainy day', 'Sunset', 'Cheap eats', 'Date night', 'With friends'];
 function allTags() {
   const seen = new Map();
   for (const p of places) for (const t of p.tags || []) { const k = t.toLowerCase(); if (!seen.has(k)) seen.set(k, t); }
@@ -163,9 +204,9 @@ function pinIcon(p, extra = '') {
   const bob = bounceId === p.id ? 'bob' : '';
   const heart = p.fav ? `<svg class="fav" viewBox="0 0 24 24" aria-label="Must-go"><path d="M12 20.5 4.2 13A4.8 4.8 0 0 1 12 6.8a4.8 4.8 0 0 1 7.8 6.2z" fill="#E58C7E" stroke="#4A4036" stroke-width="1.4" stroke-linejoin="round"/></svg>` : '';
   return L.divIcon({
-    className: `pinicon${sel}${p.fav ? ' fav' : ''}${extra}`,
+    className: `pinicon${sel}${p.fav ? ' fav' : ''}${p.visited ? ' visited' : ''}${extra}`,
     iconSize: [48, 48], iconAnchor: [24, 44],
-    html: `<div class="pin"><div class="${bob}">${artSVG(p.cat, 'art')}${heart}<span class="nm" title="${esc(p.name)}">${esc(shortName(p.name) || 'New place')}</span></div></div>`,
+    html: `<div class="pin"><div class="${bob}">${svgArt(artOf(p), 'art')}${heart}${p.visited ? '<span class="vtick" aria-label="Visited">✓</span>' : ''}<span class="nm" title="${esc(p.name)}">${esc(shortName(p.name) || 'New place')}</span></div></div>`,
   });
 }
 function ideaIcon(i) {
@@ -223,6 +264,7 @@ function renderMap() {
     if (!already) L.marker([i.lat, i.lng], { icon: pinIcon({ ...i, id: '__preview' }, ' temp'), zIndexOffset: 1000, interactive: false }).addTo(pinLayer);
   }
   bounceId = null;
+  renderRoute();
   setTimeout(declutterLabels, 0);
 }
 
@@ -252,7 +294,7 @@ function clusterIcon(g) {
   const lead = g[0], more = g.length - 1;
   return L.divIcon({
     className: 'pinicon cluster', iconSize: [48, 48], iconAnchor: [24, 44],
-    html: `<div class="pin">${artSVG(g[1].cat, 'art back')}${artSVG(lead.cat, 'art')}<span class="count">${g.length}</span><span class="nm">${esc(shortName(lead.name))} <i>+${more}</i></span></div>`,
+    html: `<div class="pin">${svgArt(artOf(g[1]), 'art back')}${svgArt(artOf(lead), 'art')}<span class="count">${g.length}</span><span class="nm">${esc(shortName(lead.name))} <i>+${more}</i></span></div>`,
   });
 }
 // Keep every pin name, but move it to a side of its icon that has room:
@@ -326,7 +368,13 @@ function renderPanel() {
   const head = $('#phead'), body = $('#pbody');
   if (view.kind === 'list') {
     const n = places.length;
-    head.innerHTML = `<h2>My places <small>${n ? n + (n === 1 ? ' pin' : ' pins') : ''}</small></h2>
+    const nv = places.filter(p => p.visited).length;
+    head.innerHTML = `<h2>My places <small>${n ? n + (n === 1 ? ' pin' : ' pins') : ''}${nv ? ` · ${nv} visited` : ''}</small></h2>
+      ${n ? `<div class="modes" role="tablist" aria-label="Arrange list">
+        ${[['type', 'By type'], ['near', 'Near me'], ['days', 'Days']].map(([k, t]) => `<button type="button" role="tab" class="mode" data-listmode="${k}" aria-selected="${listMode === k}">${t}</button>`).join('')}
+        ${nv ? `<button type="button" class="tchip vis" data-hidevisited aria-pressed="${hideVisited}">${hideVisited ? 'Show visited' : 'Hide visited'}</button>` : ''}
+      </div>` : ''}
+      ${dayFocus ? `<div class="dayfocus">Showing <b>Day ${dayFocus}</b> on the map <button type="button" class="tclear" data-dayfocus="">Show all</button></div>` : ''}
       <div class="filters" role="group" aria-label="Show categories">${CAT_KEYS.map(c => `<button type="button" class="fchip" data-f="${c}" aria-pressed="${filters.has(c)}">${dotHTML(c)}${CATS[c].short || CATS[c].label}</button>`).join('')}</div>
       ${allTags().length ? `<div class="filters tagfilters" role="group" aria-label="Filter by tag"><span class="flabel">Tags</span>${allTags().map(t => `<button type="button" class="tchip" data-tf="${esc(t)}" aria-pressed="${tagFilter.has(t.toLowerCase())}">#${esc(t)}</button>`).join('')}${tagFilter.size ? '<button type="button" class="tclear" data-tfclear>Clear</button>' : ''}</div>` : ''}`;
     if (!n) {
@@ -337,25 +385,11 @@ function renderPanel() {
         <p>Or tap a dotted <b>idea</b>, or use <b>Add a place</b> and tap the map yourself.</p></div>`;
       return;
     }
-    const s = stayOf();
-    let out = s ? '' : `<p class="lnote">Pin your stay and each place will show how far it is from your bed.</p>`;
-    for (const c of CAT_KEYS) {
-      if (!filters.has(c)) continue;
-      const items = places.filter(p => p.cat === c && hasTagMatch(p)).sort((a, b) => (b.fav - a.fav) || a.name.localeCompare(b.name));
-      if (!items.length) continue;
-      out += `<div class="group"><h3>${CATS[c].label} <span>${items.length}</span></h3>` +
-        items.map(p => `<button type="button" class="item" data-open="${esc(p.id)}">
-          ${dotHTML(p.cat)}
-          <span style="min-width:0"><span class="nm"><span>${esc(p.name)}</span>${p.fav ? '<svg class="heart" width="13" height="13" viewBox="0 0 24 24" aria-label="Must-go"><path d="M12 21 3.5 12.7A5.2 5.2 0 0 1 12 6a5.2 5.2 0 0 1 8.5 6.7z" fill="currentColor"/></svg>' : ''}</span>
-          ${p.note ? `<span class="nt">${esc(p.note)}</span>` : ''}${p.tags?.length ? `<span class="tgs">${tagChips(p.tags)}</span>` : ''}</span>
-          <span class="km">${distTxt(p)}${p.exact ? '' : '<span class="approx" title="Approximate spot. Open it and paste exact coordinates.">≈ approx</span>'}</span></button>`).join('') + `</div>`;
-    }
-    if (s) out += `<p class="lnote">Distances are straight-line from ${esc(s.name)}.</p>`;
-    body.innerHTML = out || `<div class="empty"><p>${tagFilter.size ? 'No pins match these tags and categories.' : 'All categories are hidden. Turn some back on above.'}</p></div>`;
+    body.innerHTML = listBody();
     return;
   }
 
-  if (view.kind === 'sync') { renderSyncPanel(head, body); return; }
+  if (view.kind === 'sync') { renderSyncPanel(head, body); body.insertAdjacentHTML('beforeend', offlineHTML() + shareHTML()); return; }
   if (view.kind === 'import') { renderImportPanel(head, body); return; }
 
   if (view.kind === 'detail') {
@@ -364,12 +398,17 @@ function renderPanel() {
     const d = distTxt(p);
     head.innerHTML = `<button type="button" class="back" data-back>‹ My places</button>`;
     body.innerHTML = `<div class="idea">
-      <div class="hero">${dotHTML(p.cat)}<div><span class="tag">${CATS[p.cat].label}${p.fav ? ' · <span class="heart">♥</span> must-go' : ''}</span>
+      <div class="hero">${dotFor(p)}<div><span class="tag">${CATS[p.cat].label}${p.price ? ' · ' + PRICE[p.price] : ''}${p.fav ? ' · <span class="heart">♥</span> must-go' : ''}</span>
       <h3>${esc(p.name)}</h3></div></div>
+      ${(() => { const st = openStatus(p); return st ? `<p class="openst ${st.open === true ? 'is-open' : st.open === false ? 'is-closed' : ''}"><b></b>${esc(st.text)}${p.hours?.open && p.hours?.close ? ` <small>· ${p.hours.open}–${p.hours.close}</small>` : ''}</p>` : ''; })()}
       ${p.tags?.length ? `<div class="tgs">${tagChips(p.tags)}</div>` : ''}
       ${p.note ? `<p class="dnote">${esc(p.note)}</p>` : ''}
-      ${d ? `<p class="fine">About ${d} from your stay, as the crow flies.</p>` : ''}
+      ${me ? `<p class="fine">${fmtDist(km(me, p))} from you, as the crow flies.</p>` : d ? `<p class="fine">About ${d} from your stay, as the crow flies.</p>` : ''}
       <div><span class="l golabel">Get there with</span>${goButtons(p)}</div>
+      <div class="planrow">
+        <button type="button" class="btn ${p.visited ? 'done' : 'ghost'}" data-visit="${esc(p.id)}" aria-pressed="${p.visited}">${p.visited ? '✓ Been here' : 'Mark as visited'}</button>
+        <label class="daypick"><span>Plan for</span><select data-setday="${esc(p.id)}" aria-label="Plan for which day">${dayOptions(p.day)}</select></label>
+      </div>
       <div class="row"><button type="button" class="btn" data-edit="${esc(p.id)}">Edit pin</button></div>
       <p class="fine">${p.exact ? 'Exact spot.' : 'Approximate spot. Edit it and paste coordinates for a precise location.'} ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</p></div>`;
     return;
@@ -405,6 +444,18 @@ function renderPanel() {
     <div><label class="l" for="f-name">Name</label><input type="text" id="f-name" value="${esc(p.name)}" placeholder="e.g. Hostel near Tha Phae Gate" maxlength="80" required></div>
     <div><span class="l" style="font-weight:800;font-size:13px;display:block;margin-bottom:5px">Type</span>
       <div class="cats">${CAT_KEYS.map(c => `<input type="radio" name="cat" id="f-cat-${c}" value="${c}" ${p.cat === c ? 'checked' : ''}><label for="f-cat-${c}">${dotHTML(c)}${CATS[c].short || CATS[c].label}</label>`).join('')}</div></div>
+    <div><span class="l">Icon</span>
+      <div class="icons" role="radiogroup" aria-label="Icon">
+        <input type="radio" name="icon" id="f-icon-auto" value="" ${!p.icon ? 'checked' : ''}><label for="f-icon-auto" title="Same as type">${dotFor({ cat: p.cat })}<span>Auto</span></label>
+        ${Object.entries(ICONS).filter(([k]) => k !== p.cat).map(([k, v]) => `<input type="radio" name="icon" id="f-icon-${k}" value="${k}" ${p.icon === k ? 'checked' : ''}><label for="f-icon-${k}" title="${esc(v.label)}"><span class="dot" style="background:var(--paper-2)">${svgArt(v.art)}</span></label>`).join('')}
+      </div></div>
+    <div class="two">
+      <div><label class="l" for="f-day">Plan for</label><select id="f-day">${dayOptions(p.day)}</select></div>
+      <div><span class="l">Price</span><div class="seg" role="radiogroup" aria-label="Price">${PRICE.map((t, i) => `<input type="radio" name="price" id="f-price-${i}" value="${i}" ${(p.price || 0) === i ? 'checked' : ''}><label for="f-price-${i}">${i ? t : '–'}</label>`).join('')}</div></div>
+    </div>
+    <div><span class="l">Opening hours <small class="opt">optional, Chiang Mai time</small></span>
+      <div class="hours"><input type="time" id="f-open" value="${p.hours?.open || ''}" aria-label="Opens"><span>to</span><input type="time" id="f-close" value="${p.hours?.close || ''}" aria-label="Closes"></div>
+      <div class="seg days" role="group" aria-label="Closed on">${[1, 2, 3, 4, 5, 6, 0].map(d => `<input type="checkbox" id="f-closed-${d}" value="${d}" ${p.hours?.closed?.includes(d) ? 'checked' : ''}><label for="f-closed-${d}" title="Closed on ${DAYNAMES[d]}">${DAYNAMES[d].slice(0, 2)}</label>`).join('')}<span class="segnote">closed</span></div></div>
     <div><label class="l" for="f-note">Notes</label><textarea id="f-note" placeholder="Opening hours, what to order, price, booking ref…" maxlength="2000">${esc(p.note)}</textarea></div>
     <div><label class="l" for="f-tag">Tags</label>
       <div class="tagbox" id="tagBox"></div>
@@ -432,6 +483,11 @@ function renderPanel() {
   f.addEventListener('change', e => {
     if (e.target.name === 'cat') { draft.cat = e.target.value; renderMap(); }
     if (e.target.id === 'f-fav') { draft.fav = e.target.checked; renderMap(); }
+    if (e.target.name === 'icon') { draft.icon = e.target.value || null; renderMap(); }
+    if (e.target.name === 'price') draft.price = +e.target.value;
+    if (e.target.id === 'f-day') { draft.day = e.target.value ? +e.target.value : null; if (draft.day) draft.order = nextOrder(draft.day, draft.id); }
+    if (/^f-(open|close|closed-)/.test(e.target.id)) draft.hours = cleanHours({ open: $('#f-open').value, close: $('#f-close').value,
+      closed: [...document.querySelectorAll('[id^="f-closed-"]:checked')].map(x => +x.value) });
   });
   $('#f-note').addEventListener('input', e => { draft.note = e.target.value; });
   $('#f-loc').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyLoc(); } });
@@ -446,6 +502,186 @@ function renderPanel() {
     openDetail(saved.id, false);
   });
   if (isNew) setTimeout(() => nm.focus({ preventScroll: true }), 30);
+}
+
+
+/* ---------- list modes, visited, days, location ---------- */
+const fmtDist = d => d < 1 ? `${Math.max(50, Math.round(d * 1000 / 50) * 50)} m` : `${d.toFixed(d < 10 ? 1 : 0)} km`;
+function itemHTML(p, dist, extra = '') {
+  const st = openStatus(p);
+  return `<div class="itemrow${p.visited ? ' visited' : ''}"><button type="button" class="item" data-open="${esc(p.id)}">
+    ${dotFor(p)}
+    <span style="min-width:0"><span class="nm"><span>${esc(p.name)}</span>${p.fav ? '<svg class="heart" width="13" height="13" viewBox="0 0 24 24" aria-label="Must-go"><path d="M12 21 3.5 12.7A5.2 5.2 0 0 1 12 6a5.2 5.2 0 0 1 8.5 6.7z" fill="currentColor"/></svg>' : ''}${p.visited ? '<span class="vt" aria-label="Visited">✓</span>' : ''}</span>
+    ${p.note ? `<span class="nt">${esc(p.note)}</span>` : ''}${p.tags?.length || st || p.price ? `<span class="tgs">${st ? `<span class="os ${st.open === true ? 'is-open' : st.open === false ? 'is-closed' : ''}">${st.open === true ? 'Open' : st.open === false ? 'Closed' : 'Hours'}</span>` : ''}${p.price ? `<span class="pr">${PRICE[p.price]}</span>` : ''}${tagChips(p.tags)}</span>` : ''}</span>
+    <span class="km">${dist}${p.exact ? '' : '<span class="approx" title="Approximate spot. Open it and paste exact coordinates.">≈ approx</span>'}</span></button>${extra}</div>`;
+}
+function listBody() {
+  const shown = places.filter(p => filters.has(p.cat) && hasTagMatch(p) && !(hideVisited && p.visited));
+  if (!shown.length) return `<div class="empty"><p>${hideVisited && places.some(p => p.visited) ? 'Everything here is visited. Tap “Show visited” to see them.' : tagFilter.size ? 'No pins match these tags and categories.' : 'All categories are hidden. Turn some back on above.'}</p></div>`;
+  const byVisit = (a, b) => (a.visited - b.visited);
+  if (listMode === 'near') {
+    if (!me) return `<div class="empty"><p>Turn on your location to see what’s closest.</p><p><button type="button" class="btn primary" data-locate>Find me</button></p><p class="fine">Your location stays on this device.</p></div>`;
+    const rows = shown.map(p => [km(me, p), p]).sort((a, b) => byVisit(a[1], b[1]) || a[0] - b[0]);
+    return `<p class="lnote">Closest first, from where you are now (straight line).</p>` + rows.map(([d, p]) => itemHTML(p, fmtDist(d))).join('');
+  }
+  if (listMode === 'days') {
+    const days = [...new Set(places.filter(p => p.day).map(p => p.day))].sort((a, b) => a - b);
+    let out = days.length ? '' : `<p class="lnote">Open a place and pick <b>Plan for → Day 1</b> to start a day plan. Each day gets its own route on the map.</p>`;
+    for (const d of days) {
+      const items = shown.filter(p => p.day === d).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+      if (!items.length) continue;
+      out += `<div class="group day"><h3>Day ${d} <span>${items.length} ${items.length === 1 ? 'stop' : 'stops'}</span>
+        <button type="button" class="tchip" data-dayfocus="${dayFocus === d ? '' : d}" aria-pressed="${dayFocus === d}">${dayFocus === d ? 'Showing on map' : 'Show route'}</button></h3>` +
+        items.map((p, i) => itemHTML(p, `<span class="stopn">${i + 1}</span>`, `<span class="mv"><button type="button" data-move="${esc(p.id)}" data-dir="-1" aria-label="Move ${esc(p.name)} earlier" ${i ? '' : 'disabled'}>↑</button><button type="button" data-move="${esc(p.id)}" data-dir="1" aria-label="Move ${esc(p.name)} later" ${i < items.length - 1 ? '' : 'disabled'}>↓</button></span>`)).join('') + `</div>`;
+    }
+    const loose = shown.filter(p => !p.day).sort((a, b) => byVisit(a, b) || a.name.localeCompare(b.name));
+    if (loose.length) out += `<div class="group"><h3>Not planned yet <span>${loose.length}</span></h3>` + loose.map(p => itemHTML(p, distTxt(p))).join('') + `</div>`;
+    return out;
+  }
+  const s = stayOf();
+  let out = s ? '' : `<p class="lnote">Pin your stay and each place will show how far it is from your bed.</p>`;
+  for (const c of CAT_KEYS) {
+    if (!filters.has(c)) continue;
+    const items = shown.filter(p => p.cat === c).sort((a, b) => byVisit(a, b) || (b.fav - a.fav) || a.name.localeCompare(b.name));
+    if (!items.length) continue;
+    out += `<div class="group"><h3>${CATS[c].label} <span>${items.length}</span></h3>` + items.map(p => itemHTML(p, me ? fmtDist(km(me, p)) : distTxt(p))).join('') + `</div>`;
+  }
+  if (me) out += `<p class="lnote">Distances are straight-line from where you are.</p>`;
+  else if (s) out += `<p class="lnote">Distances are straight-line from ${esc(s.name)}.</p>`;
+  return out;
+}
+function dayOptions(cur) {
+  const max = Math.max(3, ...places.map(p => p.day || 0)) + 1;
+  return `<option value="">Not planned</option>` + Array.from({ length: Math.min(30, max) }, (_, i) => `<option value="${i + 1}" ${cur === i + 1 ? 'selected' : ''}>Day ${i + 1}</option>`).join('');
+}
+const nextOrder = (day, exceptId) => Math.max(0, ...places.filter(p => p.day === day && p.id !== exceptId).map(p => p.order || 0)) + 1;
+function updatePlace(id, patch) {
+  const p = places.find(x => x.id === id); if (!p) return null;
+  return savePlace({ ...p, ...patch });
+}
+function moveStop(id, dir) {
+  const p = places.find(x => x.id === id); if (!p || !p.day) return;
+  const items = places.filter(x => x.day === p.day).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+  const i = items.findIndex(x => x.id === id), j = i + dir;
+  if (j < 0 || j >= items.length) return;
+  [items[i], items[j]] = [items[j], items[i]];
+  const now = Date.now();
+  items.forEach((x, k) => { if (x.order !== k + 1) Object.assign(x, { order: k + 1, updatedAt: now }); });
+  persist(); renderMap(); renderPanel();
+}
+// Dotted route through a focused day's stops, in order.
+const routeLayer = L.layerGroup().addTo(map);
+function renderRoute() {
+  routeLayer.clearLayers();
+  if (!dayFocus) return;
+  const stops = places.filter(p => p.day === dayFocus).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+  if (stops.length < 2) return;
+  L.polyline(stops.map(p => [p.lat, p.lng]), { color: '#B86A59', weight: 3.5, opacity: .85, dashArray: '2 9', lineCap: 'round', interactive: false }).addTo(routeLayer);
+}
+// "You are here": only starts after you tap the locate button (the browser asks first).
+let meWatch = null, meMarker = null, meCircle = null, meFirst = false;
+function startLocate() {
+  if (!('geolocation' in navigator)) { toast('This browser can’t share your location.'); return; }
+  if (meWatch != null) { if (me) flyVis([me.lat, me.lng], Math.max(map.getZoom(), 15), { duration: .6 }); return; }
+  $('#locBtn')?.classList.add('busy'); meFirst = true;
+  meWatch = navigator.geolocation.watchPosition(pos => {
+    me = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+    $('#locBtn')?.classList.remove('busy'); $('#locBtn')?.setAttribute('aria-pressed', 'true');
+    if (!meMarker) {
+      meCircle = L.circle([me.lat, me.lng], { radius: me.acc, color: '#5F8790', weight: 1, fillColor: '#7FAEB5', fillOpacity: .15, interactive: false }).addTo(map);
+      meMarker = L.marker([me.lat, me.lng], { interactive: false, keyboard: false, zIndexOffset: 2000,
+        icon: L.divIcon({ className: 'medot', iconSize: [22, 22], iconAnchor: [11, 11], html: '<i></i>' }) }).addTo(map);
+    } else { meMarker.setLatLng([me.lat, me.lng]); meCircle.setLatLng([me.lat, me.lng]).setRadius(me.acc); }
+    if (meFirst) { meFirst = false; if (km(me, { lat: CENTER[0], lng: CENTER[1] }) < 150) flyVis([me.lat, me.lng], Math.max(map.getZoom(), 15), { duration: .7 }); else toast('You’re not in Chiang Mai yet, so the map stays put.'); }
+    if (view.kind === 'list' || view.kind === 'detail') renderPanel();
+  }, err => {
+    $('#locBtn')?.classList.remove('busy');
+    navigator.geolocation.clearWatch(meWatch); meWatch = null;
+    toast(err.code === 1 ? 'Location is blocked. Allow it for this site in your browser settings.' : 'Couldn’t find your location. Try again outside or with Wi-Fi on.');
+  }, { enableHighAccuracy: true, maximumAge: 15000, timeout: 20000 });
+}
+
+
+/* ---------- offline ---------- */
+// The service worker (sw.js) keeps the app and any map you've looked at. This pre-saves
+// the whole Chiang Mai area (city in detail, the wider province roughly) in one go.
+const OFFLINE_KEY = 'cm-trip-map-offline';
+const AREAS_OFFLINE = [
+  { s: 18.70, w: 98.88, n: 18.87, e: 99.08, z: [10, 14] },   // city + Doi Suthep, full detail
+  { s: 18.30, w: 98.40, n: 19.25, e: 99.45, z: [8, 11] },    // day trips (Inthanon, Mae Kampong…), overview
+];
+let offlineJob = null;
+function tileRange(a, z) {
+  const n = 2 ** z, x = lng => Math.floor((lng + 180) / 360 * n);
+  const y = lat => { const r = lat * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * n); };
+  return { x0: x(a.w), x1: x(a.e), y0: y(a.n), y1: y(a.s) };
+}
+function offlineHTML() {
+  const saved = (() => { try { return +localStorage.getItem(OFFLINE_KEY) || 0; } catch { return 0; } })();
+  const can = 'serviceWorker' in navigator && 'caches' in window;
+  return `<div class="idea offl"><span class="l golabel">Offline map</span>
+    <p class="fine" style="margin:0">${can ? 'Save the Chiang Mai map onto this device so it still works with weak signal. Your pins are always saved on the device.' : 'This browser can’t save the map for offline use. Your pins still work offline.'}</p>
+    ${can ? `<div class="row"><button type="button" class="btn ${saved ? 'ghost' : 'primary'}" data-offline ${offlineJob ? 'disabled' : ''}>${offlineJob ? `Saving… ${offlineJob.done}/${offlineJob.total}` : saved ? 'Update offline map' : 'Save Chiang Mai for offline'}</button></div>
+    <p class="fine" style="margin:0">${saved ? `Saved ${new Date(saved).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}. ` : ''}A few MB. Search and sync still need a connection.</p>` : ''}</div>`;
+}
+async function saveOffline() {
+  if (offlineJob) return;
+  try {
+    await navigator.serviceWorker?.ready;
+    const tj = await fetch('https://tiles.openfreemap.org/planet').then(r => r.json());
+    const tpl = tj.tiles[0], urls = new Set();
+    for (const a of AREAS_OFFLINE) for (let z = a.z[0]; z <= a.z[1]; z++) {
+      const r = tileRange(a, z);
+      for (let x = r.x0; x <= r.x1; x++) for (let y = r.y0; y <= r.y1; y++) urls.add(tpl.replace('{z}', z).replace('{x}', x).replace('{y}', y));
+    }
+    for (const f of ['Noto Sans Italic', 'Noto Sans Regular']) urls.add(`https://tiles.openfreemap.org/fonts/${encodeURIComponent(f)}/0-255.pbf`);
+    const list = [...urls];
+    offlineJob = { done: 0, total: list.length, failed: 0 }; renderPanel();
+    let i = 0;
+    const worker = async () => { while (i < list.length) { const u = list[i++]; try { const r = await fetch(u); if (!r.ok) offlineJob.failed++; } catch { offlineJob.failed++; } offlineJob.done++; if (offlineJob.done % 10 === 0 && view.kind === 'sync') renderPanel(); } };
+    await Promise.all(Array.from({ length: 6 }, worker));
+    const { failed, total } = offlineJob;
+    offlineJob = null;
+    if (failed > total * 0.1) toast(`Saved most of the map, but ${failed} pieces failed. Try again on Wi-Fi.`);
+    else { try { localStorage.setItem(OFFLINE_KEY, String(Date.now())); } catch {} toast('Chiang Mai map saved for offline'); }
+  } catch {
+    offlineJob = null; toast('Couldn’t save the map. Check your connection and try again.');
+  }
+  if (view.kind === 'sync') renderPanel();
+}
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+
+/* ---------- sharing ---------- */
+function shareHTML() {
+  if (!sync.isConfigured() || !sync.getCode()) return `<div class="idea offl"><span class="l golabel">Share with travel buddies</span><p class="fine" style="margin:0">Create a trip code above first. Then you can share a link that lets friends add places with you, or one that only lets them look.</p></div>`;
+  return `<div class="idea offl"><span class="l golabel">Share with travel buddies</span>
+    <p class="fine" style="margin:0"><b>Plan together:</b> send them the phone link above. They see and edit the same pins as you.</p>
+    <p class="fine" style="margin:0"><b>Just to look:</b> a separate link that shows your map and plan, but can’t change anything.</p>
+    <div class="row"><button type="button" class="btn" data-viewlink>Copy view-only link</button></div></div>`;
+}
+async function copyViewLink() {
+  try {
+    const code = await sync.rpc('trip_view_code', { p_trip: sync.getCode() });
+    const link = `${location.origin}${location.pathname}#view=${sync.fmtCode(code)}`;
+    try { await navigator.clipboard.writeText(link); toast('View-only link copied'); }
+    catch { prompt('Copy this view-only link:', link); }
+  } catch (e) {
+    toast(e.status === 404 ? 'View-only links need a one-time setup: run supabase/share.sql in Supabase.' : 'Couldn’t make a view-only link. Check your connection.');
+  }
+}
+async function loadViewOnly() {
+  try {
+    const rows = await sync.rpc('trip_view_get', { p_view: VIEW_CODE });
+    places = (Array.isArray(rows) ? rows : []).map(r => cleanPlace({ ...r.data, id: r.id })).filter(Boolean);
+    renderMap(); renderPanel();
+    return true;
+  } catch (e) {
+    toast(e.status === 404 ? 'This share link isn’t set up yet.' : 'Couldn’t load the shared map. Check your connection.');
+    return false;
+  }
 }
 
 /* ---------- import a shared Google Maps list ---------- */
@@ -992,6 +1228,7 @@ function closeSearch() { sres.hidden = true; qEl.setAttribute('aria-expanded', '
 function choose(i) {
   const o = opts[i]; if (!o) return;
   closeSearch(); qEl.blur();
+  if (viewOnly && ['exact', 'importlist'].includes(o.type)) { toast('This is a view-only map.'); return; }
   if (o.type === 'importlist') { qEl.value = ''; qClear.hidden = true; openImport(o.list); return; }
   if (o.type === 'searchname') { qEl.value = o.name; qEl.focus(); qEl.dispatchEvent(new Event('input')); return; }
   if (o.type === 'mine') { qEl.value = ''; qClear.hidden = true; openDetail(o.id, true); return; }
@@ -1070,6 +1307,7 @@ $('#syncBtn').addEventListener('click', openSync);
 $('#pfoot').addEventListener('click', openSync);
 $('#ideasBtn').addEventListener('click', e => { showIdeas = !showIdeas; e.currentTarget.setAttribute('aria-pressed', showIdeas); renderMap(); });
 $('#zfit').addEventListener('click', fitAll);
+$('#locBtn').addEventListener('click', startLocate);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && mode !== 'browse') setMode('browse'); });
 
 document.querySelector('.panel').addEventListener('click', e => {
@@ -1082,9 +1320,27 @@ document.querySelector('.panel').addEventListener('click', e => {
     else filters.add(c);
     renderMap(); renderPanel(); return;
   }
+  const lm = t.closest('[data-listmode]');
+  if (lm) { listMode = lm.dataset.listmode; if (listMode === 'near' && !me) startLocate(); if (listMode !== 'days' && dayFocus) { dayFocus = null; renderMap(); } renderPanel(); return; }
+  if (t.closest('[data-hidevisited]')) { hideVisited = !hideVisited; renderMap(); renderPanel(); return; }
+  if (t.closest('[data-locate]')) { startLocate(); return; }
+  const df = t.closest('[data-dayfocus]');
+  if (df) {
+    dayFocus = df.dataset.dayfocus ? +df.dataset.dayfocus : null;
+    renderMap(); renderPanel();
+    const stops = places.filter(visible);
+    if (dayFocus && stops.length) map.flyToBounds(L.latLngBounds(stops.map(p => [p.lat, p.lng])).pad(0.3), { maxZoom: 16, duration: .7 });
+    return;
+  }
+  const mv = t.closest('[data-move]');
+  if (mv) { moveStop(mv.dataset.move, +mv.dataset.dir); return; }
+  const vb = t.closest('[data-visit]');
+  if (vb) { const p = places.find(x => x.id === vb.dataset.visit); if (p) { updatePlace(p.id, { visited: !p.visited }); toast(p.visited ? 'Unmarked' : 'Marked as visited ✓'); renderMap(); renderPanel(); } return; }
   const ia = t.closest('[data-impall]');
   if (ia && view.kind === 'import') { const on = ia.dataset.impall === '1'; view.rows.forEach(r => { r.pick = on; }); renderPanel(); return; }
   if (t.closest('[data-impgo]') && view.kind === 'import') { doImport(); return; }
+  if (t.closest('[data-offline]')) { saveOffline(); return; }
+  if (t.closest('[data-viewlink]')) { copyViewLink(); return; }
   if (t.closest('[data-newcode]')) { sync.setCode(sync.newCode()); renderPanel(); toast('Trip code created. Now add your phone.'); return; }
   if (t.closest('[data-joincode]')) {
     const v = $('#f-code').value;
@@ -1130,6 +1386,8 @@ document.querySelector('.panel').addEventListener('click', e => {
 });
 
 document.querySelector('.panel').addEventListener('change', e => {
+  const sd = e.target.closest?.('[data-setday]');
+  if (sd) { const d = sd.value ? +sd.value : null; updatePlace(sd.dataset.setday, { day: d, order: d ? nextOrder(d, sd.dataset.setday) : 0 }); toast(d ? `Planned for Day ${d}` : 'Removed from the plan'); renderMap(); renderPanel(); return; }
   if (view.kind !== 'import') return;
   const t = e.target;
   const pb = $('#pbody'), top = pb.scrollTop;
@@ -1143,6 +1401,13 @@ window.addEventListener('storage', e => { if (e.key === STORAGE_KEY) { load(); i
 
 /* ---------- boot ---------- */
 (async () => {
+  if (viewOnly) {
+    $('#syncTxt').textContent = 'View-only shared map';
+    document.querySelector('.brand p').textContent = 'a shared trip map · view only';
+    if (await loadViewOnly() && places.length) fitAll();
+    setInterval(() => { if (document.visibilityState === 'visible') loadViewOnly(); }, 60000);
+    return;
+  }
   load();
   await seedOnFirstVisit();
   renderMap(); renderPanel();

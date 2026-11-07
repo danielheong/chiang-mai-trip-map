@@ -2,7 +2,7 @@
 // Each pin is one row keyed by (trip code, pin id). The newest edit wins per pin;
 // deletions are kept as "deleted" rows so other devices remove the pin too.
 // Works offline: pins always save locally first and sync when a connection is back.
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080049';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080103';
 
 const CODE_KEY = 'cm-trip-map-sync-code';
 const TOMB_KEY = 'cm-trip-map-deleted';     // { id: deletedAtMs }
@@ -44,7 +44,7 @@ function setStatus(state, msg = '') {
   hooks?.onStatus?.(status);
 }
 
-async function rpc(fn, body) {
+export async function rpc(fn, body) {
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 12000);
   const headers = { 'Content-Type': 'application/json', apikey: SUPABASE_KEY };
   if (SUPABASE_KEY.startsWith('eyJ')) headers.Authorization = `Bearer ${SUPABASE_KEY}`;   // legacy anon JWT
