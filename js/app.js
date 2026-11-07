@@ -2,7 +2,8 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR } from './data.js';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR } from './data.js';
+import { watercolorStyle } from './mapstyle.js';
 import * as sync from './sync.js';
 
 const L = window.L;
@@ -14,7 +15,8 @@ const SEEDED_KEY = 'cm-trip-map-seeded';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const col = c => `var(--c-${c})`;
-const dotHTML = c => `<span class="dot" style="background:${col(c)}"><svg viewBox="0 0 24 24" aria-hidden="true">${CATS[c].glyph}</svg></span>`;
+const artSVG = (c, cls = '') => `<svg class="${cls}" viewBox="0 0 48 48" aria-hidden="true"><g filter="url(#wc)">${(CATS[c] || CATS.other).art}</g></svg>`;
+const dotHTML = c => `<span class="dot" style="background:${col(c)}">${artSVG(c)}</span>`;
 const newId = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const isMobile = () => window.matchMedia('(max-width:860px)').matches;
 function km(a, b) {
@@ -111,48 +113,61 @@ const map = L.map('map', { zoomControl: false, attributionControl: true, minZoom
   .setView(CENTER, 14);
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
-// Basemap: OpenFreeMap vector tiles (free, no API key) drawn by MapLibre GL inside Leaflet.
-// Swap the style URLs (or point them at your own style JSON) to restyle the whole map.
+// Basemap: our own watercolor style (js/mapstyle.js) on OpenFreeMap's free vector tiles,
+// drawn by MapLibre GL inside Leaflet. A paper texture is laid over it in CSS (.paper).
 const ATTR = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
-const STYLE_LIGHT = 'https://tiles.openfreemap.org/styles/liberty';
-const STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
-const darkMQ = window.matchMedia('(prefers-color-scheme: dark)');
-let base = null, baseDark = null;
-function applyTiles() {
-  const dark = darkMQ.matches;
-  if (base && baseDark === dark) return;
-  if (base) map.removeLayer(base);
-  base = L.maplibreGL({ style: dark ? STYLE_DARK : STYLE_LIGHT, attribution: ATTR }).addTo(map);
-  baseDark = dark;
-}
-applyTiles();
-darkMQ.addEventListener?.('change', applyTiles);
+const base = L.maplibreGL({ style: watercolorStyle, attribution: ATTR }).addTo(map);
+base.getMaplibreMap().on('error', e => console.warn('Basemap:', e.error?.message || e));
 
+const decorLayer = L.layerGroup().addTo(map);
 const ideaLayer = L.layerGroup().addTo(map);
 const pinLayer = L.layerGroup().addTo(map);
 const mapEl = $('#map');
-const updateIdeaNames = () => mapEl.classList.toggle('hide-idea-names', map.getZoom() < 15);
+const updateIdeaNames = () => {
+  mapEl.classList.toggle('hide-idea-names', map.getZoom() < 15);
+  mapEl.classList.toggle('hide-pin-names', map.getZoom() < 14);
+};
 map.on('zoomend', updateIdeaNames); updateIdeaNames();
+
+// Hand-lettered area names + little paintings, shown only at zooms where they help.
+const DECOR_ART = {
+  lotus: `<ellipse cx="24" cy="34" rx="15" ry="4.5" fill="#9FBF8A" stroke="#4A4036" stroke-width="1.2"/>
+    <path d="M24 33c-5-3-7-9-6-15 3 2 5 6 6 9 1-3 3-7 6-9 1 6-1 12-6 15z" fill="#EBB4C4" stroke="#4A4036" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M24 33c-2-4-2-11 0-17 2 6 2 13 0 17z" fill="#F4CCD7" stroke="#4A4036" stroke-width="1.2" stroke-linejoin="round"/>`,
+  tree: `<path d="M24 42v-9" stroke="#8C6A55" stroke-width="2" stroke-linecap="round"/>
+    <path d="M24 8c6 5 11 12 11 18a11 8 0 0 1-22 0c0-6 5-13 11-18z" fill="#8FAA72" stroke="#4A4036" stroke-width="1.2" stroke-linejoin="round"/>`,
+  hill: `<path d="M4 40c5-10 9-15 13-15 3 0 5 3 7 3 3-7 6-13 9-13 5 0 9 12 11 25z" fill="#93AC74" stroke="#4A4036" stroke-width="1.2" stroke-linejoin="round"/>`,
+};
+function renderDecor() {
+  decorLayer.clearLayers();
+  const z = map.getZoom();
+  for (const a of AREAS) {
+    if (z < a.min || z > 17) continue;
+    L.marker([a.lat, a.lng], { interactive: false, keyboard: false, zIndexOffset: -1000,
+      icon: L.divIcon({ className: `arealbl ${a.size}${a.water ? ' water' : ''}`, iconSize: [0, 0], html: `<span>${esc(a.name)}</span>` }) }).addTo(decorLayer);
+  }
+  if (z >= 13 && z <= 16.5) for (const d of DECOR) {
+    L.marker([d.lat, d.lng], { interactive: false, keyboard: false, zIndexOffset: -900,
+      icon: L.divIcon({ className: 'decor', iconSize: [30, 30], iconAnchor: [15, 26],
+        html: `<svg viewBox="0 0 48 48" aria-hidden="true"><g filter="url(#wc)">${DECOR_ART[d.kind]}</g></svg>` }) }).addTo(decorLayer);
+  }
+}
+map.on('zoomend', renderDecor); renderDecor();
 
 function pinIcon(p, extra = '') {
   const sel = (view.kind === 'edit' && draft && draft.id === p.id) || (view.kind === 'detail' && view.id === p.id) ? ' sel' : '';
   const bob = bounceId === p.id ? 'bob' : '';
-  const heart = p.fav ? '<circle cx="29" cy="5" r="7" fill="var(--panel)"/><path d="M29 8.5l-3.6-3.4a2.2 2.2 0 0 1 3.6-2.6 2.2 2.2 0 0 1 3.6 2.6z" fill="var(--c-eat)"/>' : '';
+  const heart = p.fav ? `<svg class="fav" viewBox="0 0 24 24" aria-label="Must-go"><path d="M12 20.5 4.2 13A4.8 4.8 0 0 1 12 6.8a4.8 4.8 0 0 1 7.8 6.2z" fill="#E58C7E" stroke="#4A4036" stroke-width="1.4" stroke-linejoin="round"/></svg>` : '';
   return L.divIcon({
     className: `pinicon${sel}${extra}`,
-    iconSize: [32, 44], iconAnchor: [16, 43],
-    html: `<div class="pin"><div class="${bob}">
-      <svg width="32" height="44" viewBox="0 0 32 44" aria-hidden="true">
-        <ellipse cx="16" cy="43" rx="7" ry="2.5" fill="#000" opacity=".18"/>
-        <path class="bd" d="M16 42C12 33 1 28 1 16A15 15 0 1 1 31 16C31 28 20 33 16 42Z" fill="${col(p.cat)}" stroke="var(--panel)" stroke-width="2.5"/>
-        <g transform="translate(4.5 4.5) scale(.96)">${CATS[p.cat].glyph}</g>${heart}
-      </svg><span class="nm">${esc(p.name || 'New place')}</span></div></div>`,
+    iconSize: [48, 48], iconAnchor: [24, 44],
+    html: `<div class="pin"><div class="${bob}">${artSVG(p.cat, 'art')}${heart}<span class="nm">${esc(p.name || 'New place')}</span></div></div>`,
   });
 }
 function ideaIcon(i) {
   return L.divIcon({
-    className: 'ideaicon', iconSize: [20, 20], iconAnchor: [10, 10],
-    html: `<div class="ring" style="color:${col(i.cat)}"><i></i></div><span class="nm">${esc(i.name)}</span>`,
+    className: 'ideaicon', iconSize: [12, 12], iconAnchor: [6, 6],
+    html: `<div class="ring" style="color:#8C6A55"></div><span class="nm">${esc(i.name)}</span>`,
   });
 }
 
@@ -218,7 +233,7 @@ function renderPanel() {
       ${allTags().length ? `<div class="filters tagfilters" role="group" aria-label="Filter by tag"><span class="flabel">Tags</span>${allTags().map(t => `<button type="button" class="tchip" data-tf="${esc(t)}" aria-pressed="${tagFilter.has(t.toLowerCase())}">#${esc(t)}</button>`).join('')}${tagFilter.size ? '<button type="button" class="tclear" data-tfclear>Clear</button>' : ''}</div>` : ''}`;
     if (!n) {
       body.innerHTML = `<div class="empty">
-        <svg viewBox="0 0 120 80" aria-hidden="true"><ellipse cx="60" cy="70" rx="40" ry="6" fill="var(--line)"/><path d="M60 66C54 52 40 46 40 30a20 20 0 1 1 40 0c0 16-14 22-20 36z" fill="var(--accent)" stroke="var(--edge)" stroke-width="3"/><circle cx="60" cy="30" r="8" fill="var(--panel)" stroke="var(--edge)" stroke-width="3"/></svg>
+        <svg class="art" viewBox="0 0 48 48" aria-hidden="true"><g filter="url(#wc)">${CATS.see.art}</g></svg>
         <h3>No pins yet</h3>
         <p>Type a name in the <b>search bar</b> on the map, or paste a Google Maps link.</p>
         <p>Or tap a dotted <b>idea</b>, or use <b>Add a place</b> and tap the map yourself.</p></div>`;
@@ -230,7 +245,7 @@ function renderPanel() {
       if (!filters.has(c)) continue;
       const items = places.filter(p => p.cat === c && hasTagMatch(p)).sort((a, b) => (b.fav - a.fav) || a.name.localeCompare(b.name));
       if (!items.length) continue;
-      out += `<div class="group"><h3>${CATS[c].label} <span style="font-family:var(--f-body)">${items.length}</span></h3>` +
+      out += `<div class="group"><h3>${CATS[c].label} <span>${items.length}</span></h3>` +
         items.map(p => `<button type="button" class="item" data-open="${esc(p.id)}">
           ${dotHTML(p.cat)}
           <span style="min-width:0"><span class="nm"><span>${esc(p.name)}</span>${p.fav ? '<svg class="heart" width="13" height="13" viewBox="0 0 24 24" aria-label="Must-go"><path d="M12 21 3.5 12.7A5.2 5.2 0 0 1 12 6a5.2 5.2 0 0 1 8.5 6.7z" fill="currentColor"/></svg>' : ''}</span>
@@ -250,8 +265,8 @@ function renderPanel() {
     const d = distTxt(p);
     head.innerHTML = `<button type="button" class="back" data-back>‹ My places</button>`;
     body.innerHTML = `<div class="idea">
-      <span class="tag">${dotHTML(p.cat)} ${CATS[p.cat].label}${p.fav ? ' · <span class="heart">♥</span> Must-go' : ''}</span>
-      <h3>${esc(p.name)}</h3>
+      <div class="hero">${dotHTML(p.cat)}<div><span class="tag">${CATS[p.cat].label}${p.fav ? ' · <span class="heart">♥</span> must-go' : ''}</span>
+      <h3>${esc(p.name)}</h3></div></div>
       ${p.tags?.length ? `<div class="tgs">${tagChips(p.tags)}</div>` : ''}
       ${p.note ? `<p class="dnote">${esc(p.note)}</p>` : ''}
       ${d ? `<p class="fine">About ${d} from your stay, as the crow flies.</p>` : ''}
@@ -268,8 +283,8 @@ function renderPanel() {
     const d = distTxt(i);
     head.innerHTML = `<button type="button" class="back" data-back>‹ My places</button>`;
     body.innerHTML = `<div class="idea">
-      <span class="tag">${dotHTML(i.cat)} ${src} · ${CATS[i.cat].label}</span>
-      <h3>${esc(i.name)}</h3>${i.area ? `<p class="fine" style="margin-top:-6px">${esc(i.area)}</p>` : ''}${i.blurb ? `<p>${esc(i.blurb)}</p>` : ''}
+      <div class="hero">${dotHTML(i.cat)}<div><span class="tag">${src} · ${CATS[i.cat].label}</span>
+      <h3>${esc(i.name)}</h3></div></div>${i.area ? `<p class="fine" style="margin-top:-6px">${esc(i.area)}</p>` : ''}${i.blurb ? `<p>${esc(i.blurb)}</p>` : ''}
       ${d ? `<p class="fine">About ${d} from your stay, as the crow flies.</p>` : ''}
       <div class="row">${saved ? `<button type="button" class="btn" data-open="${esc(saved.id)}">Already on your map · open</button>` : `<button type="button" class="btn primary" data-adopt>Add to my map</button>`}
       <a class="btn ghost" href="${i.source === 'list' ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(i.name + ' Chiang Mai')}` : gmapsLink(i)}" target="_blank" rel="noopener">View on Google Maps ↗</a></div>
@@ -420,27 +435,87 @@ function applyLoc() {
   if (!$('#f-name').value.trim() && loc.name) { $('#f-name').value = loc.name; draft.name = loc.name; }
   inp.value = '';
   updateLocUI(loc.exact ? 'Got it. Pinned at the exact spot. Save to keep it.' : 'Moved to that link’s map view centre, which may be slightly off. Coordinates are more precise.', loc.exact);
-  bounceId = draft.id; renderMap(); map.flyTo([draft.lat, draft.lng], Math.max(map.getZoom(), 16), { duration: .6 });
+  bounceId = draft.id; renderMap(); flyVis([draft.lat, draft.lng], Math.max(map.getZoom(), 16), { duration: .6 });
 }
 
+
+/* ---------- phone bottom sheet ---------- */
+const panelEl = $('#panel');
+const SHEETS = ['peek', 'half', 'full'];
+function sheetPx(state) {
+  const h = document.querySelector('.app').clientHeight;
+  return state === 'full' ? h - 8 : state === 'half' ? h * 0.52 : 132;
+}
+function setSheet(state) {
+  if (!isMobile()) return;
+  panelEl.dataset.sheet = state;
+  if (state !== 'peek') return;
+  panelEl.querySelector('.pbody').scrollTop = 0;
+}
+// Fly so the point lands in the middle of the map area the sheet leaves visible.
+function flyVis(ll, z, opts) {
+  if (!isMobile()) return map.flyTo(ll, z, opts);
+  const off = Math.min(sheetPx(panelEl.dataset.sheet), sheetPx('half')) / 2;
+  map.flyTo(map.unproject(map.project(ll, z).add([0, off]), z), z, opts);
+}
+// After tapping a pin on a phone, nudge the map if the sheet now covers it.
+function keepVisible(ll) {
+  if (!isMobile()) return;
+  const pt = map.latLngToContainerPoint(ll), limit = map.getSize().y - sheetPx(panelEl.dataset.sheet) - 40;
+  if (pt.y > limit) map.panBy([0, pt.y - limit + 40], { duration: .4 });
+}
+(() => {
+  const grab = $('#grab');
+  let y0 = 0, h0 = 0, moved = false, dragging = false;
+  grab.addEventListener('pointerdown', e => {
+    if (!isMobile()) return;
+    dragging = true; moved = false; y0 = e.clientY; h0 = panelEl.offsetHeight;
+    grab.setPointerCapture(e.pointerId); panelEl.classList.add('dragging');
+  });
+  grab.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dy = e.clientY - y0; if (Math.abs(dy) > 6) moved = true;
+    const max = document.querySelector('.app').clientHeight - 8;
+    panelEl.style.height = Math.max(90, Math.min(max, h0 - dy)) + 'px';
+  });
+  const end = e => {
+    if (!dragging) return;
+    dragging = false; panelEl.classList.remove('dragging');
+    const h = panelEl.offsetHeight; panelEl.style.height = '';
+    if (!moved) { const i = SHEETS.indexOf(panelEl.dataset.sheet); setSheet(SHEETS[(i + 1) % 3]); return; }
+    const appH = document.querySelector('.app').clientHeight, r = h / appH, up = e.clientY < y0;
+    setSheet(r > 0.72 ? 'full' : r > 0.3 ? (up && r > 0.6 ? 'full' : 'half') : (up && r > 0.22 ? 'half' : 'peek'));
+  };
+  grab.addEventListener('pointerup', end);
+  grab.addEventListener('pointercancel', end);
+  // In peek, tapping the panel heading opens it.
+  $('#phead').addEventListener('click', e => {
+    if (isMobile() && panelEl.dataset.sheet === 'peek' && !e.target.closest('button,a,input')) setSheet('half');
+  });
+  panelEl.dataset.sheet = 'peek';
+})();
+map.on('dragstart', () => { if (isMobile() && panelEl.dataset.sheet === 'full') setSheet('half'); });
+
 /* ---------- flows ---------- */
-function openEditor(p) { draft = { ...p, tags: [...(p.tags || [])] }; view = { kind: 'edit' }; setMode('browse'); renderMap(); renderPanel(); }
+function openEditor(p) { draft = { ...p, tags: [...(p.tags || [])] }; view = { kind: 'edit' }; setMode('browse'); renderMap(); renderPanel(); setSheet('full'); }
 function openDetail(id, fly = true) {
   const p = places.find(x => x.id === id); if (!p) return;
   draft = null; setMode('browse');
   view = { kind: 'detail', id };
   renderMap(); renderPanel();
-  if (fly) map.flyTo([p.lat, p.lng], Math.max(map.getZoom(), 16), { duration: .6 });
-  else if (isMobile()) document.querySelector('.panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setSheet('half');
+  if (fly) flyVis([p.lat, p.lng], Math.max(map.getZoom(), 16), { duration: .6 });
+  else keepVisible([p.lat, p.lng]);
 }
-function closeEditor() { draft = null; view = { kind: 'list' }; setMode('browse'); renderMap(); renderPanel(); }
+function closeEditor() { draft = null; view = { kind: 'list' }; setMode('browse'); renderMap(); renderPanel(); setSheet('half'); }
 function openPreview(item, fly = true) {
   draft = null; setMode('browse');
   view = { kind: 'preview', item };
   bounceId = '__preview';
   renderMap(); renderPanel();
-  if (fly) map.flyTo([item.lat, item.lng], Math.max(map.getZoom(), 16), { duration: .7 });
-  else if (isMobile()) document.querySelector('.panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setSheet('half');
+  if (fly) flyVis([item.lat, item.lng], Math.max(map.getZoom(), 16), { duration: .7 });
+  else keepVisible([item.lat, item.lng]);
 }
 function setMode(m) {
   mode = m;
@@ -456,7 +531,7 @@ function fitAll() {
   map.flyToBounds(b.pad(0.25), { maxZoom: 16, duration: .7 });
 }
 map.on('click', e => {
-  if (mode !== 'adding') return;
+  if (mode !== 'adding') { setSheet('peek'); return; }
   const id = newId();
   openEditor({ id, name: '', cat: 'see', note: '', fav: false, exact: false, lat: e.latlng.lat, lng: e.latlng.lng });
   bounceId = id; renderMap();
@@ -648,13 +723,13 @@ function choose(i) {
     const id = newId();
     openEditor({ id, name: n, cat, note: '', fav: false, exact: o.loc.exact, lat: o.loc.lat, lng: o.loc.lng });
     bounceId = id; renderMap();
-    map.flyTo([o.loc.lat, o.loc.lng], Math.max(map.getZoom(), 16), { duration: .7 });
+    flyVis([o.loc.lat, o.loc.lng], Math.max(map.getZoom(), 16), { duration: .7 });
     return;
   }
   openPreview(o.item, true);
 }
 qEl.addEventListener('input', () => { active = qEl.value.trim() ? 0 : -1; scheduleOSM(qEl.value); renderSearch(); });
-qEl.addEventListener('focus', () => { if (qEl.value.trim()) renderSearch(); });
+qEl.addEventListener('focus', () => { setSheet('peek'); if (qEl.value.trim()) renderSearch(); });
 qEl.addEventListener('keydown', e => {
   if (e.key === 'ArrowDown') { e.preventDefault(); if (sres.hidden) renderSearch(); active = Math.min(active + 1, opts.length - 1); markActive(); }
   else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); markActive(); }
@@ -699,10 +774,10 @@ $('#addBtn').addEventListener('click', () => {
   if (mode === 'adding') { setMode('browse'); return; }
   draft = null; view = { kind: 'list' }; renderMap(); renderPanel();
   setMode('adding');
-  if (isMobile()) document.querySelector('.mapwrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setSheet('peek');
 });
 $('#bannerCancel').addEventListener('click', () => setMode('browse'));
-const openSync = () => { draft = null; setMode('browse'); view = { kind: 'sync' }; renderMap(); renderPanel(); if (isMobile()) document.querySelector('.panel').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+const openSync = () => { draft = null; setMode('browse'); view = { kind: 'sync' }; renderMap(); renderPanel(); setSheet('half'); };
 $('#syncBtn').addEventListener('click', openSync);
 $('#pfoot').addEventListener('click', openSync);
 $('#ideasBtn').addEventListener('click', e => { showIdeas = !showIdeas; e.currentTarget.setAttribute('aria-pressed', showIdeas); renderMap(); });

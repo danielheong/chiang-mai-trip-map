@@ -11,20 +11,23 @@ A personal Chiang Mai trip-planning map. Static site, **no build step, no npm de
 - Deploy: GitHub Pages from `main` / root (`.nojekyll` is present).
 
 ## Architecture
-- **Map:** Leaflet + OpenFreeMap vector tiles via MapLibre GL (`maplibre-gl-leaflet`); styles `liberty` (light) / `dark`, chosen by `prefers-color-scheme` (`STYLE_LIGHT`/`STYLE_DARK` in app.js). CARTO free tiles now need an API key, so don't go back to them.
+- **Map:** Leaflet + OpenFreeMap vector tiles via MapLibre GL (`maplibre-gl-leaflet`), drawn with our own style object from `js/mapstyle.js`. CARTO free tiles now need an API key, so don't go back to them.
 - **Pins:** `L.divIcon` teardrop SVGs; glyphs and colours per category live in `CATS` (`js/data.js`) and the `--c-<cat>` CSS tokens.
 - **State:** `places` array in localStorage key `cm-trip-map-places`. Place shape:
   `{ id, name, cat, note, fav, exact, lat, lng, ideaId, createdAt, tags[] }`. `exact` = location came from OSM search, coordinates or a Google Maps link (vs. built-in/hand-placed).
-- **Panel views:** `list` | `detail` (place card with Google Maps/Waze links) | `edit` (uses `draft`) | `preview` (search or idea result before adding).
+- **Panel views:** `sync` (trip code) | `list` | `detail` (place card with Google Maps/Waze links) | `edit` (uses `draft`) | `preview` (search or idea result before adding).
 - **Search order:** pasted coords/Google Maps link → your tags (`#tag` filters) → your pins → built-in `DIR` matches → Photon (OSM) results, debounced 300 ms, filtered to 150 km around Chiang Mai.
 - **Sync:** `js/sync.js` calls Supabase RPCs `trip_get`/`trip_put` (see `supabase/setup.sql`) over plain fetch. Rows keyed by (trip code, pin id); newest `updatedAt` wins; deletes are tombstones (`cm-trip-map-deleted`); `cm-trip-map-known` tracks what the server has. Trip code lives in localStorage only; `#join=CODE` links a device. Always bump `updatedAt` via `savePlace`.
 - **Export/Import:** JSON `{ app, version, exportedAt, places }`; import merges by `id`.
 
 ## Style
-- Design tokens are CSS custom properties at the top of `css/style.css`, with dark values under `prefers-color-scheme: dark` and `[data-theme]`. Use tokens, never literal colours.
-- Fonts: Mali (display/labels), Nunito (body).
-- Keep it cute but tidy: sticker-style cards (2px ink border + offset shadow), rounded pills.
-- Must work at ~400px phone width.
+- Look: pastel watercolor illustrated map (inspired by hand-painted city maps). One deliberate light theme, no dark mode.
+- Basemap: hand-built MapLibre style in `js/mapstyle.js` (colours in `PAINT`). Paper/wash texture is the `.paper` overlay in CSS.
+- Pins are small paintings: `CATS[cat].art` in `js/data.js` (48×48 SVG, ink #4A4036), run through the `#wc` SVG filter defined in `index.html`. Area names (`AREAS`) and decorations (`DECOR`) are painted as non-interactive markers.
+- Fonts: Amatic SC (titles), Patrick Hand (UI labels, pin names), Nunito (body text).
+- Tokens are CSS custom properties at the top of `css/style.css`; `--wobble` is the hand-drawn pill radius.
+- Phone (≤860px): full-screen map, panel is a bottom sheet (`#panel[data-sheet=peek|half|full]`, `setSheet()` in app.js).
+- The map needs requestAnimationFrame, so it stays blank in a hidden/background browser tab; that's not a bug.
 
 ## Ideas not built yet
 - Day-by-day itinerary (assign pins to days, draw each day's route).

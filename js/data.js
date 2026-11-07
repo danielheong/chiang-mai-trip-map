@@ -1,15 +1,76 @@
 // Place data for the Chiang Mai Trip Map.
 // Coordinates for built-in places are approximate (good to within a block or so).
 
+// Each category has a small hand-painted illustration (48×48 viewBox). Drawn for this
+// map: guesthouse, Lanna temple, khao soi, coffee, market stall, Doi Suthep, Yi Peng
+// lanterns and a red songthaew. Rendered through the #wc watercolor filter in index.html.
+const K = 'stroke="#4A4036" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"';
+const N = 'fill="none" ' + K;
 export const CATS = {
-  stay:   { label: 'Stay',   glyph: '<path d="M4 11.5 12 5l8 6.5V19H4z" fill="#fff"/><rect x="10" y="13" width="4" height="6" rx="1" fill="var(--c-stay)"/>' },
-  see:    { label: 'Temple / Sight', short:'Sight', glyph: '<path d="M12 3.5l2.6 6.5H9.4z M8 10.5h8v2H8z M6.5 13h11l1 5.5h-13z" fill="#fff"/>' },
-  eat:    { label: 'Eat',    glyph: '<path d="M4 11h16a8 7 0 0 1-16 0z" fill="#fff"/><path d="M9 9.5 15 4M12 9.5l5.5-4.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>' },
-  cafe:   { label: 'Café',   glyph: '<path d="M5 8h11v6a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z" fill="#fff"/><path d="M16 10h1.5a2.5 2.5 0 0 1 0 5H16" fill="none" stroke="#fff" stroke-width="2"/>' },
-  shop:   { label: 'Shop / Market', short:'Shop', glyph: '<path d="M6 9h12l-1 10H7z" fill="#fff"/><path d="M9 9V7.5a3 3 0 0 1 6 0V9" fill="none" stroke="#fff" stroke-width="2"/>' },
-  nature: { label: 'Nature', glyph: '<path d="M5.5 18.5C5.5 10 11 5.5 19 5.5 19 13 14.5 18.5 5.5 18.5z" fill="#fff"/><path d="M6 18 14 10" stroke="var(--c-nature)" stroke-width="1.6" stroke-linecap="round"/>' },
-  night:  { label: 'Nightlife', short:'Night', glyph: '<path d="M14.5 4.5a7.5 7.5 0 1 0 5 12.5 6.2 6.2 0 1 1-5-12.5z" fill="#fff"/>' },
-  other:  { label: 'Other',  glyph: '<path d="M12 4l2.3 5 5.2.5-4 3.5 1.2 5.2L12 15.5 7.3 18.2l1.2-5.2-4-3.5 5.2-.5z" fill="#fff"/>' },
+  stay: { label: 'Stay', art:
+    `<path d="M5.5 23 24 9l18.5 14z" fill="#D9897A" ${K}/>
+     <path d="M10 22.5h28V41H10z" fill="#F3D6CC" ${K}/>
+     <path d="M21 41v-8a3.2 3.2 0 0 1 6.4 0v8" fill="#A57B63" ${K}/>
+     <path d="M13.5 26.5h5v5h-5zM29.5 26.5h5v5h-5z" fill="#CFE3E6" ${K}/>
+     <path d="M7 41h34" ${N}/>` },
+  see: { label: 'Temple / Sight', short: 'Sight', art:
+    `<path d="M24 3.5 26.4 13c3.6 1.4 4.6 4 4.6 7H17c0-3 1-5.6 4.6-7z" fill="#E7C064" ${K}/>
+     <path d="M8 31 24 20.5 40 31z" fill="#E2B857" ${K}/>
+     <path d="M12.5 25.5 24 16.5l11.5 9z" fill="#D9776A" ${K}/>
+     <path d="M12.5 25.5c-2.4-.4-3.4-2.2-3-4.4M35.5 25.5c2.4-.4 3.4-2.2 3-4.4" ${N}/>
+     <path d="M12 31h24v11H12z" fill="#F6ECDA" ${K}/>
+     <path d="M21 42v-5.5a3 3 0 0 1 6 0V42" fill="#B8664F" ${K}/>
+     <path d="M9.5 42h29" ${N}/>` },
+  eat: { label: 'Eat', art:
+    `<path d="M29 5 20.5 23M34 6.5 24 23" fill="none" stroke="#9C7660" stroke-width="2" stroke-linecap="round"/>
+     <path d="M7.5 23.5C7.5 34 14 39.5 24 39.5S40.5 34 40.5 23.5z" fill="#9CC3C9" ${K}/>
+     <path d="M12.5 30.5h23" fill="none" stroke="#F7EFE0" stroke-width="2" stroke-dasharray=".1 3.6" stroke-linecap="round"/>
+     <ellipse cx="24" cy="23.5" rx="16.5" ry="4.4" fill="#EDB85C" ${K}/>
+     <path d="M15.5 22.6c1.8-2.6 3.6-2.6 4.6 0 1.6-2.6 3.4-2.6 4.6 0" fill="none" stroke="#B98A3E" stroke-width="1.2" stroke-linecap="round"/>
+     <circle cx="31.5" cy="22.4" r="2.2" fill="#B5CF7A" ${K}/>
+     <path d="M18 39.5h12l-1.4 3h-9.2z" fill="#7FAEB5" ${K}/>` },
+  cafe: { label: 'Café', art:
+    `<path d="M19 4.5c-2.6 2.6-2.6 5 0 7.6s2.6 5 0 7.6M26 4.5c-2.6 2.6-2.6 5 0 7.6s2.6 5 0 7.6" fill="none" stroke="#B8AE9C" stroke-width="1.4" stroke-linecap="round"/>
+     <ellipse cx="22.5" cy="40" rx="15.5" ry="3.2" fill="#CFE3E6" ${K}/>
+     <path d="M11 20h23v9a9.5 9.5 0 0 1-9.5 9.5h-4A9.5 9.5 0 0 1 11 29z" fill="#F7EFE0" ${K}/>
+     <path d="M11.2 24.5h22.6v4H11.2z" fill="#D98B7A"/>
+     <path d="M11 20h23v9a9.5 9.5 0 0 1-9.5 9.5h-4A9.5 9.5 0 0 1 11 29z" ${N}/>
+     <path d="M34 23h2.4a4.6 4.6 0 0 1 0 9.2H33" ${N}/>
+     <ellipse cx="22.5" cy="20" rx="11.5" ry="2.6" fill="#9C7660" ${K}/>` },
+  shop: { label: 'Shop / Market', short: 'Shop', art:
+    `<path d="M11 21v20M37 21v20" ${N}/>
+     <path d="M8.5 32h31v9h-31z" fill="#C49A7C" ${K}/>
+     <circle cx="15" cy="29.6" r="2.6" fill="#E7A33E" ${K}/><circle cx="21" cy="29.6" r="2.6" fill="#D9776A" ${K}/>
+     <circle cx="27" cy="29.6" r="2.6" fill="#B5CF7A" ${K}/><circle cx="33" cy="29.6" r="2.6" fill="#E7A33E" ${K}/>
+     <path d="M7 11.5h34l-2 8.5H9z" fill="#F7EFE0" ${K}/>
+     <path d="M7 11.5h6.8l-.6 8.5H9zM20.6 11.5h6.8V20h-6.8zM34.2 11.5H41l-2 8.5h-4.2z" fill="#E4A6C3"/>
+     <path d="M7 11.5h34l-2 8.5H9z" ${N}/>
+     <path d="M9 20q2.5 4 5 0 2.5 4 5 0 2.5 4 5 0 2.5 4 5 0 2.5 4 5 0 2.5 4 5 0" fill="#E4A6C3" ${K}/>` },
+  nature: { label: 'Nature', art:
+    `<path d="M3 40.5C9 26 13.5 19 18 19.5c3 .3 4.6 3 6 3.2 2.2-5.6 4.6-9.7 6.5-9.7 4 0 9.5 13 14.5 27.5z" fill="#8FAA72" ${K}/>
+     <path d="M29.6 13.2l.9-4.4.9 4.4z" fill="#E2B857" stroke="#4A4036" stroke-width=".9" stroke-linejoin="round"/>
+     <path d="M3 41.5c5-7 10-10.5 14-10.5s8.5 3.5 13 10.5z" fill="#B5CF7A" ${K}/>
+     <path d="M38 41.5v-6.5" fill="none" stroke="#9C7660" stroke-width="1.8" stroke-linecap="round"/>
+     <circle cx="38" cy="30.5" r="5.2" fill="#7E9C62" ${K}/>
+     <path d="M2.5 41.5h43" ${N}/>` },
+  night: { label: 'Nightlife', short: 'Night', art:
+    `<circle cx="14" cy="24" r="10.5" fill="#F6D98C" opacity=".45"/><circle cx="32.5" cy="27.5" r="12" fill="#F6D98C" opacity=".45"/>
+     <path d="M2.5 8.5Q24 18.5 45.5 8.5" ${N}/>
+     <path d="M14 12.6V16M32.5 14.6v4" ${N}/>
+     <ellipse cx="14" cy="24" rx="6" ry="8" fill="#E7A33E" ${K}/>
+     <path d="M14 16.2v15.6M10.6 18.4c-1.6 3.6-1.6 7.6 0 11.2M17.4 18.4c1.6 3.6 1.6 7.6 0 11.2" fill="none" stroke="#4A4036" stroke-width=".8" opacity=".5"/>
+     <ellipse cx="32.5" cy="27.5" rx="7" ry="9" fill="#E58C7E" ${K}/>
+     <path d="M32.5 18.6v17.8M28.6 21c-1.8 4.2-1.8 8.8 0 13M36.4 21c1.8 4.2 1.8 8.8 0 13" fill="none" stroke="#4A4036" stroke-width=".8" opacity=".5"/>
+     <path d="M11.5 16.4h5M11.5 31.6h5M29.6 18.8h5.8M29.6 36.2h5.8M14 31.8v4.2M32.5 36.5v4.5" ${N}/>` },
+  other: { label: 'Other', art:
+    `<path d="M18 17.5h22.5a2 2 0 0 1 2 2V34H18z" fill="#D9604F" ${K}/>
+     <path d="M18.5 15.5h24" ${N}/>
+     <path d="M21 21h18.5v5.5H21z" fill="#F7EFE0" ${K}/>
+     <path d="M5.5 34v-8l4.5-6.5h8V34z" fill="#D9604F" ${K}/>
+     <path d="M10.8 21.6H16v5.2H8.2z" fill="#CFE3E6" ${K}/>
+     <path d="M4.5 34h39" ${N}/>
+     <circle cx="12.5" cy="35.5" r="4" fill="#4A4036"/><circle cx="12.5" cy="35.5" r="1.5" fill="#F7EFE0"/>
+     <circle cx="35" cy="35.5" r="4" fill="#4A4036"/><circle cx="35" cy="35.5" r="1.5" fill="#F7EFE0"/>` },
 };
 export const CAT_KEYS = Object.keys(CATS);
 
@@ -87,3 +148,26 @@ export const EXTRA = [
 ];
 const ALIASES = { chediluang:'chedi luang', srisuphan:'silver temple', jingjai:'jj market', warorot:'kad luang', sundaywalk:'sunday market', satwalk:'saturday market wualai', doisuthep:'doi suthep', huaytungtao:'huai tung tao', kangwat:'ban kang wat' };
 export const DIR = [...IDEAS.map(i => ({ ...i, alias: ALIASES[i.id] || '' })), ...EXTRA];
+
+// Hand-lettered neighbourhood names painted onto the map (approximate centres).
+export const AREAS = [
+  { name: 'Old City',        lat: 18.7884, lng: 98.9868, size: 'l', min: 12 },
+  { name: 'Nimman',          lat: 18.7990, lng: 98.9655, size: 'm', min: 13 },
+  { name: 'Ping River',      lat: 18.7930, lng: 99.0060, size: 'm', min: 13, water: true },
+  { name: 'Night Bazaar',    lat: 18.7832, lng: 99.0000, size: 's', min: 14 },
+  { name: 'Santitham',       lat: 18.8045, lng: 98.9825, size: 's', min: 14 },
+  { name: 'Wua Lai',         lat: 18.7772, lng: 98.9868, size: 's', min: 14 },
+  { name: 'Chiang Mai Uni',  lat: 18.8020, lng: 98.9530, size: 's', min: 14 },
+  { name: 'Doi Suthep',      lat: 18.8070, lng: 98.9170, size: 'l', min: 11 },
+  { name: 'Chang Khlan',     lat: 18.7760, lng: 99.0010, size: 's', min: 14 },
+];
+
+// Little painted decorations scattered on the map (no meaning, just charm).
+// kind: lotus (moat corners), tree, hill. Coordinates approximate.
+export const DECOR = [
+  { kind: 'lotus', lat: 18.79555, lng: 98.99375 }, { kind: 'lotus', lat: 18.79560, lng: 98.97985 },
+  { kind: 'lotus', lat: 18.78080, lng: 98.97990 }, { kind: 'lotus', lat: 18.78070, lng: 98.99370 },
+  { kind: 'tree', lat: 18.8110, lng: 98.9300 }, { kind: 'tree', lat: 18.7990, lng: 98.9250 },
+  { kind: 'tree', lat: 18.8160, lng: 98.9420 }, { kind: 'hill', lat: 18.8020, lng: 98.9050 },
+  { kind: 'tree', lat: 18.7930, lng: 98.9440 }, { kind: 'hill', lat: 18.8200, lng: 98.9120 },
+];

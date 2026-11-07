@@ -1,10 +1,11 @@
 # Chiang Mai Trip Map
 
-A cute, clickable map for planning a Chiang Mai trip. Pin where you'll stay, eat, café-hop and wander, on real OpenStreetMap streets.
+A hand-painted-style map for planning a Chiang Mai trip: pastel watercolor streets, little illustrated pins and hand-lettered names. Pin where you'll stay, eat, café-hop and wander, on real OpenStreetMap streets.
 
 ## What it does
 
-- **Real streets.** Leaflet + [OpenFreeMap](https://openfreemap.org) vector tiles (OpenStreetMap data, free, no API key); switches to a dark style in dark mode.
+- **Real streets, painted.** Leaflet + [OpenFreeMap](https://openfreemap.org) vector tiles (OpenStreetMap data, free, no API key) drawn with a custom watercolor style (`js/mapstyle.js`).
+- **Works like an app on phones:** full-screen map with a sheet you drag up for your list and place cards.
 - **Search as you type.** Instant matches from ~65 built-in Chiang Mai spots, plus live OpenStreetMap search (via [Photon](https://photon.komoot.io)) for hotels, cafés, restaurants and anything else that's mapped.
 - **Exact pins from Google Maps.** Paste coordinates (`18.7877, 98.9934`) or a full Google Maps link into the search bar or a pin's *Exact location* box.
 - **Tags:** add your own tags to any pin (e.g. `Day 1`, `Booked`, `Rainy day`), filter the map by tag, or type `#tag` in search.
@@ -54,6 +55,7 @@ index.html            page shell
 css/style.css         all styling (light + dark tokens at the top)
 js/app.js             map, search, panel, storage
 js/data.js            categories, pin glyphs, built-in places
+js/mapstyle.js        the watercolor map colours
 js/sync.js            Supabase sync (merge per pin, newest edit wins)
 js/config.js          Supabase URL + public key (blank = sync off)
 supabase/setup.sql    one-time database setup
