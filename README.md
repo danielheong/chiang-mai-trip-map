@@ -74,6 +74,10 @@ The built-in search uses OpenStreetMap, which misses some small hotels and new s
 
 The helper only follows links to Google, so it can't be used to fetch anything else. (Google's terms don't allow Google *search* results on a non-Google map, which is why the map doesn't search Google directly.)
 
+## Home-screen icon
+
+The icon is `icons/icon.svg` (a painted Lanna temple in front of Doi Suthep), saved as `icons/icon-180.png` (iPhone), `icon-192.png` and `icon-512.png` (Android). To use your own picture, replace those PNGs with square images of the same sizes (no transparent areas), publish, then on the phone delete the old home-screen icon and add it again: iPhones save the icon at the moment you add it.
+
 ## View-only share links (one-time setup)
 
 Supabase → **SQL Editor** → **New query**, paste all of `supabase/share.sql`, **Run**. Then in the map: **Sync → Copy view-only link**.

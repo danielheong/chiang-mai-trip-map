@@ -1,0 +1,15 @@
+{
+  "name": "Chiang Mai Trip Map",
+  "short_name": "Chiang Mai",
+  "description": "My Chiang Mai places, plans and routes.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F4EEDF",
+  "theme_color": "#F4EEDF",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

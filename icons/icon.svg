@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 120 120">
+  <!-- Home-screen icon: a Lanna temple with a gold chedi on sage, Doi Suthep behind, cream road. -->
+  <defs>
+    <radialGradient id="sky" cx="50%" cy="35%" r="75%"><stop offset="0" stop-color="#D3DDB5"/><stop offset="1" stop-color="#AFC28C"/></radialGradient>
+  </defs>
+  <rect width="120" height="120" fill="url(#sky)"/>
+  <path d="M-4 88C14 60 28 48 40 50c8 1 12 8 17 8 6-14 14-25 20-25 11 0 25 30 47 55z" fill="#93AC74"/>
+  <path d="M75.6 34.5l2.4-9 2.4 9z" fill="#E2B857" stroke="#4A4036" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M-4 120V96c30-10 60-12 128-4v28z" fill="#BCCB9E"/>
+  <path d="M30 120c6-12 14-20 30-24 16 4 24 12 30 24z" fill="#F5F0DE" opacity=".9"/>
+  <g transform="translate(24 22) scale(1.5)" stroke="#4A4036" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M24 3.5 26.4 13c3.6 1.4 4.6 4 4.6 7H17c0-3 1-5.6 4.6-7z" fill="#E7C064"/>
+    <path d="M8 31 24 20.5 40 31z" fill="#E2B857"/>
+    <path d="M12.5 25.5 24 16.5l11.5 9z" fill="#D9776A"/>
+    <path d="M12.5 25.5c-2.4-.4-3.4-2.2-3-4.4M35.5 25.5c2.4-.4 3.4-2.2 3-4.4" fill="none"/>
+    <path d="M12 31h24v11H12z" fill="#F6ECDA"/>
+    <path d="M21 42v-5.5a3 3 0 0 1 6 0V42" fill="#B8664F"/>
+    <path d="M9.5 42h29" fill="none"/>
+  </g>
+  <g stroke="#4A4036" stroke-width="1" stroke-linejoin="round">
+    <ellipse cx="18" cy="104" rx="9" ry="2.8" fill="#9FBF8A"/>
+    <path d="M18 103.5c-3-2-4.2-5.4-3.6-9 1.8 1.2 3 3.6 3.6 5.4.6-1.8 1.8-4.2 3.6-5.4.6 3.6-.6 7-3.6 9z" fill="#EBB4C4"/>
+    <ellipse cx="103" cy="106" rx="8" ry="2.5" fill="#9FBF8A"/>
+    <path d="M103 105.5c-2.6-1.8-3.7-4.8-3.2-8 1.6 1 2.7 3.2 3.2 4.8.5-1.6 1.6-3.8 3.2-4.8.5 3.2-.6 6.2-3.2 8z" fill="#EBB4C4"/>
+  </g>
+</svg>

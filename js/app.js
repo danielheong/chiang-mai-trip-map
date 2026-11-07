@@ -2,10 +2,10 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611080118';
-import { watercolorStyle } from './mapstyle.js?v=202611080118';
-import * as sync from './sync.js?v=202611080118';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080118';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611080143';
+import { watercolorStyle } from './mapstyle.js?v=202611080143';
+import * as sync from './sync.js?v=202611080143';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080143';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
