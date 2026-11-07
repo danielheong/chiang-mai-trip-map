@@ -13,7 +13,7 @@ A hand-painted-style map for planning a Chiang Mai trip: pastel watercolor stree
 - **Search your own pins** by name, note or tag, alongside places and OpenStreetMap results.
 - **You are here:** the locate button shows your position; **Near me** sorts your pins by distance.
 - **Visited:** tick places off; visited pins fade on the map and can be hidden.
-- **Day plans:** put pins on Day 1, Day 2…, reorder stops, and **Show route** draws that day's path.
+- **Day plans:** add as many days as you need, set the trip's start date (days show real dates and **Today**), name each day, and fill it with **+ Add places**. Every day has its own colour, badge and dotted route; tap a day chip to see just that day.
 - **Per-pin details:** your own icon (lanterns, martini, elephant…), price (฿–฿฿฿฿) and opening hours with an "Open now / Closed" hint in Chiang Mai time.
 - **Works offline:** the app and any map you've viewed stay on your phone; **Sync → Save Chiang Mai for offline** saves the whole area (a few MB).
 - **Share:** your trip code lets friends plan with you; a **view-only link** lets others look without changing anything (needs `supabase/share.sql`, see below).

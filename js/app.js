@@ -2,10 +2,10 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611080103';
-import { watercolorStyle } from './mapstyle.js?v=202611080103';
-import * as sync from './sync.js?v=202611080103';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080103';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611080115';
+import { watercolorStyle } from './mapstyle.js?v=202611080115';
+import * as sync from './sync.js?v=202611080115';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080115';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -53,6 +53,23 @@ let places = [];
 // View-only mode: opened from a share link (#view=CODE). Pins come from the trip, nothing is saved.
 const VIEW_CODE = (location.hash.match(/^#view=([A-Za-z0-9-]{16,40})$/) || [])[1]?.replace(/-/g, '') || '';
 const viewOnly = !!VIEW_CODE;
+// Trip settings: number of days, optional start date and day names. Synced as one extra row.
+const META_KEY = 'cm-trip-map-trip', META_ID = '__trip';
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function cleanTrip(t) {
+  t = t && typeof t === 'object' ? t : {};
+  const titles = {};
+  for (const [k, v] of Object.entries(t.titles || {})) if (+k >= 1 && +k <= 30 && typeof v === 'string' && v.trim()) titles[+k] = v.trim().slice(0, 40);
+  return { days: Math.max(0, Math.min(30, Math.floor(+t.days) || 0)), start: DATE_RE.test(t.start) ? t.start : '', titles, updatedAt: +t.updatedAt || 0 };
+}
+let trip = cleanTrip(null);
+function loadTrip() { try { trip = cleanTrip(JSON.parse(localStorage.getItem(META_KEY) || 'null')); } catch { trip = cleanTrip(null); } }
+function saveTrip(patch) {
+  trip = cleanTrip({ ...trip, ...patch, updatedAt: Date.now() });
+  if (viewOnly) return;
+  try { localStorage.setItem(META_KEY, JSON.stringify(trip)); } catch {}
+  sync.schedule();
+}
 if (viewOnly) document.documentElement.classList.add('viewonly');
 let mode = 'browse';            // browse | adding
 let view = { kind: 'list' };    // list | edit | preview {item}
@@ -84,6 +101,8 @@ async function seedOnFirstVisit() {
   let seeded = false;
   try { seeded = localStorage.getItem(SEEDED_KEY) === '1'; } catch {}
   if (seeded || places.length) return;
+  // A device joining an existing trip gets its pins from the trip instead of the starter pin.
+  if (/^#join=/.test(location.hash)) { try { localStorage.setItem(SEEDED_KEY, '1'); } catch {} return; }
   try {
     const res = await fetch('data/seed-pins.json', { cache: 'no-store' });
     if (res.ok) {
@@ -144,7 +163,9 @@ function savePlace(p) {
 function deletePlace(id) { places = places.filter(p => p.id !== id); sync.markDeleted(id); persist(); }
 // Another device changed pins: take the merged list, keep any open edit untouched.
 function applyRemote(list) {
-  places = list.map(cleanPlace).filter(Boolean);
+  const m = list.find(x => x.id === META_ID);
+  if (m) { trip = cleanTrip(m); try { localStorage.setItem(META_KEY, JSON.stringify(trip)); } catch {} }
+  places = list.filter(x => x.id !== META_ID).map(cleanPlace).filter(Boolean);
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(places)); } catch {}
   if (view.kind === 'edit') { renderMap(); return; }
   renderMap(); renderPanel();
@@ -206,7 +227,7 @@ function pinIcon(p, extra = '') {
   return L.divIcon({
     className: `pinicon${sel}${p.fav ? ' fav' : ''}${p.visited ? ' visited' : ''}${extra}`,
     iconSize: [48, 48], iconAnchor: [24, 44],
-    html: `<div class="pin"><div class="${bob}">${svgArt(artOf(p), 'art')}${heart}${p.visited ? '<span class="vtick" aria-label="Visited">✓</span>' : ''}<span class="nm" title="${esc(p.name)}">${esc(shortName(p.name) || 'New place')}</span></div></div>`,
+    html: `<div class="pin"><div class="${bob}">${svgArt(artOf(p), 'art')}${heart}${p.visited ? '<span class="vtick" aria-label="Visited">✓</span>' : ''}${p.day && (listMode === 'days' || dayFocus) ? `<span class="dbadge" style="background:${dayColor(p.day)}">${p.day}</span>` : ''}<span class="nm" title="${esc(p.name)}">${esc(shortName(p.name) || 'New place')}</span></div></div>`,
   });
 }
 function ideaIcon(i) {
@@ -374,7 +395,7 @@ function renderPanel() {
         ${[['type', 'By type'], ['near', 'Near me'], ['days', 'Days']].map(([k, t]) => `<button type="button" role="tab" class="mode" data-listmode="${k}" aria-selected="${listMode === k}">${t}</button>`).join('')}
         ${nv ? `<button type="button" class="tchip vis" data-hidevisited aria-pressed="${hideVisited}">${hideVisited ? 'Show visited' : 'Hide visited'}</button>` : ''}
       </div>` : ''}
-      ${dayFocus ? `<div class="dayfocus">Showing <b>Day ${dayFocus}</b> on the map <button type="button" class="tclear" data-dayfocus="">Show all</button></div>` : ''}
+
       <div class="filters" role="group" aria-label="Show categories">${CAT_KEYS.map(c => `<button type="button" class="fchip" data-f="${c}" aria-pressed="${filters.has(c)}">${dotHTML(c)}${CATS[c].short || CATS[c].label}</button>`).join('')}</div>
       ${allTags().length ? `<div class="filters tagfilters" role="group" aria-label="Filter by tag"><span class="flabel">Tags</span>${allTags().map(t => `<button type="button" class="tchip" data-tf="${esc(t)}" aria-pressed="${tagFilter.has(t.toLowerCase())}">#${esc(t)}</button>`).join('')}${tagFilter.size ? '<button type="button" class="tclear" data-tfclear>Clear</button>' : ''}</div>` : ''}`;
     if (!n) {
@@ -391,6 +412,7 @@ function renderPanel() {
 
   if (view.kind === 'sync') { renderSyncPanel(head, body); body.insertAdjacentHTML('beforeend', offlineHTML() + shareHTML()); return; }
   if (view.kind === 'import') { renderImportPanel(head, body); return; }
+  if (view.kind === 'daypick') { renderDayPick(head, body); return; }
 
   if (view.kind === 'detail') {
     const p = places.find(x => x.id === view.id);
@@ -485,7 +507,7 @@ function renderPanel() {
     if (e.target.id === 'f-fav') { draft.fav = e.target.checked; renderMap(); }
     if (e.target.name === 'icon') { draft.icon = e.target.value || null; renderMap(); }
     if (e.target.name === 'price') draft.price = +e.target.value;
-    if (e.target.id === 'f-day') { draft.day = e.target.value ? +e.target.value : null; if (draft.day) draft.order = nextOrder(draft.day, draft.id); }
+    if (e.target.id === 'f-day') { draft.day = pickDay(e.target.value); if (draft.day) draft.order = nextOrder(draft.day, draft.id); }
     if (/^f-(open|close|closed-)/.test(e.target.id)) draft.hours = cleanHours({ open: $('#f-open').value, close: $('#f-close').value,
       closed: [...document.querySelectorAll('[id^="f-closed-"]:checked')].map(x => +x.value) });
   });
@@ -504,6 +526,122 @@ function renderPanel() {
   if (isNew) setTimeout(() => nm.focus({ preventScroll: true }), 30);
 }
 
+
+
+/* ---------- day plans ---------- */
+const DAY_COLORS = ['#D9776A', '#5F9AA8', '#D9A53A', '#6F9A55', '#A77DB8', '#D9739A', '#5E7FC4', '#A8805F'];
+const dayColor = d => DAY_COLORS[(d - 1) % DAY_COLORS.length];
+const tripDays = () => Math.max(trip.days, 0, ...places.map(p => p.day || 0));
+const stopsOf = d => places.filter(p => p.day === d).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+function bkToday() { return new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10); }
+function dayDate(d) {
+  if (!trip.start) return { text: '', today: false };
+  const dt = new Date(trip.start + 'T00:00:00Z'); dt.setUTCDate(dt.getUTCDate() + d - 1);
+  return { text: dt.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }), today: dt.toISOString().slice(0, 10) === bkToday() };
+}
+function dayTitle(d) { return trip.titles[d] || ''; }
+function daysBody(shown) {
+  const n = tripDays();
+  const ro = viewOnly;
+  let out = `<div class="tripbar">
+    ${ro ? (trip.start ? `<span class="fine">Trip starts ${esc(dayDate(1).text)}</span>` : '') : `<label class="tstart"><span>Trip starts</span><input type="date" id="trip-start" value="${trip.start}"></label>`}
+    ${ro ? '' : `<button type="button" class="btn ghost" data-addday>+ Add day</button>`}</div>`;
+  if (!n) return out + `<div class="empty"><p>No days yet.</p>${ro ? '' : `<p>Tap <b>+ Add day</b>, then fill each day with <b>+ Add places</b>. Or open any place and choose <b>Plan for → Day 1</b>.</p>`}</div>`;
+  out += `<div class="daychips" role="group" aria-label="Show a day on the map">
+    <button type="button" class="dchipbtn" data-dayfocus="" aria-pressed="${!dayFocus}">All days</button>
+    ${Array.from({ length: n }, (_, k) => k + 1).map(d => `<button type="button" class="dchipbtn" data-dayfocus="${d}" aria-pressed="${dayFocus === d}" style="--dc:${dayColor(d)}"><i></i>Day ${d}</button>`).join('')}</div>`;
+  for (let d = 1; d <= n; d++) {
+    if (dayFocus && dayFocus !== d) continue;
+    const items = stopsOf(d).filter(p => shown.includes(p)), dd = dayDate(d), title = dayTitle(d);
+    out += `<div class="group day${dd.today ? ' today' : ''}" style="--dc:${dayColor(d)}">
+      <div class="dayhead">
+        <span class="dnum">Day ${d}</span>${dd.text ? `<span class="ddate">${esc(dd.text)}${dd.today ? ' · <b>Today</b>' : ''}</span>` : ''}
+        <span class="dcount">${items.length ? `${items.length} ${items.length === 1 ? 'stop' : 'stops'}` : 'empty'}</span>
+      </div>
+      ${ro ? (title ? `<div class="dtitle ro">${esc(title)}</div>` : '') : `<button type="button" class="dtitle${title ? '' : ' empty'}" data-daytitle="${d}">${title ? esc(title) : 'Name this day…'}</button>`}
+      ${items.map((p, i) => itemHTML(p, `<span class="stopn">${i + 1}</span>`, ro ? '' : `<span class="mv"><button type="button" data-move="${esc(p.id)}" data-dir="-1" aria-label="Move ${esc(p.name)} earlier" ${i ? '' : 'disabled'}>↑</button><button type="button" data-move="${esc(p.id)}" data-dir="1" aria-label="Move ${esc(p.name)} later" ${i < items.length - 1 ? '' : 'disabled'}>↓</button></span>`)).join('')}
+      ${items.length ? '' : `<p class="lnote">${ro ? 'Nothing planned yet.' : 'Nothing planned yet. Add places to this day.'}</p>`}
+      ${ro ? '' : `<div class="dayact" id="dayact-${d}">
+        <button type="button" class="tchip" data-dayadd="${d}">+ Add places</button>
+        ${items.length > 1 ? `<button type="button" class="tchip" data-dayfocus="${dayFocus === d ? '' : d}">${dayFocus === d ? 'Show all days' : 'Show route'}</button>` : ''}
+        <button type="button" class="tclear" data-delday="${d}">Remove day</button></div>`}
+    </div>`;
+  }
+  const loose = shown.filter(p => !p.day).sort((a, b) => (a.visited - b.visited) || a.name.localeCompare(b.name));
+  if (loose.length && !dayFocus) out += `<div class="group"><h3>Not planned yet <span>${loose.length}</span></h3>` + loose.map(p => itemHTML(p, distTxt(p))).join('') + `</div>`;
+  return out;
+}
+function dayOptions(cur) {
+  const n = Math.max(1, tripDays());
+  return `<option value="">Not planned</option>` +
+    Array.from({ length: n }, (_, i) => `<option value="${i + 1}" ${cur === i + 1 ? 'selected' : ''}>Day ${i + 1}${dayTitle(i + 1) ? ' · ' + esc(dayTitle(i + 1)) : ''}</option>`).join('') +
+    (n < 30 ? `<option value="new">+ New day (Day ${n + 1})</option>` : '');
+}
+// A "Plan for" value: '' (none), a day number, or 'new' (adds a day).
+function pickDay(v) {
+  if (v === 'new') { const d = tripDays() + 1; saveTrip({ days: d }); return d; }
+  return v ? +v : null;
+}
+function addDay() {
+  const d = tripDays() + 1;
+  if (d > 30) { toast('30 days is the limit.'); return; }
+  saveTrip({ days: d }); renderPanel(); toast(`Day ${d} added`);
+}
+function removeDay(d) {
+  const now = Date.now();
+  for (const p of places) {
+    if (p.day === d) Object.assign(p, { day: null, order: 0, updatedAt: now });
+    else if (p.day > d) Object.assign(p, { day: p.day - 1, updatedAt: now });
+  }
+  const titles = {};
+  for (const [k, v] of Object.entries(trip.titles)) { const n = +k; if (n < d) titles[n] = v; else if (n > d) titles[n - 1] = v; }
+  saveTrip({ days: Math.max(0, tripDays() - 1), titles });
+  if (dayFocus === d) dayFocus = null; else if (dayFocus > d) dayFocus--;
+  persist(); renderMap(); renderPanel(); toast(`Day ${d} removed. Its places are back in “Not planned”.`);
+}
+function openDayPick(d) {
+  view = { kind: 'daypick', day: d, picks: new Set(stopsOf(d).map(p => p.id)) };
+  renderPanel(); setSheet('full');
+}
+function renderDayPick(head, body) {
+  const d = view.day, picks = view.picks;
+  const rows = [...places].sort((a, b) => ((a.day === d) - (b.day === d)) * -1 || (!!a.day - !!b.day) || a.name.localeCompare(b.name));
+  head.innerHTML = `<button type="button" class="back" data-back-days>‹ Days</button>
+    <h2 style="margin-top:6px">Day ${d}${dayTitle(d) ? ` <small>${esc(dayTitle(d))}</small>` : ''}</h2>`;
+  body.innerHTML = `<div class="form imp">
+    <p class="fine" style="margin:0">Tick the places for Day ${d}. Places already on another day move here.</p>
+    <div class="improws">${rows.map(p => `
+      <div class="improw${picks.has(p.id) ? '' : ' off'}">
+        <input type="checkbox" id="dp-${esc(p.id)}" data-dp="${esc(p.id)}" ${picks.has(p.id) ? 'checked' : ''} aria-label="Plan ${esc(p.name)} for Day ${d}">
+        <label for="dp-${esc(p.id)}" class="impdot">${dotFor(p)}</label>
+        <label for="dp-${esc(p.id)}" class="impname"><b>${esc(p.name)}</b><small>${p.day && p.day !== d ? `Now on Day ${p.day}` : p.day === d ? `On Day ${d}` : 'Not planned'}${p.visited ? ' · visited' : ''}</small></label>
+        <span></span>
+      </div>`).join('')}</div>
+    <div class="row"><button type="button" class="btn primary" data-dpsave>Save Day ${d}</button><button type="button" class="btn ghost" data-back-days>Cancel</button></div></div>`;
+}
+function saveDayPick() {
+  const d = view.day, picks = view.picks, now = Date.now();
+  let order = Math.max(0, ...stopsOf(d).filter(p => picks.has(p.id)).map(p => p.order || 0));
+  for (const p of places) {
+    if (picks.has(p.id) && p.day !== d) Object.assign(p, { day: d, order: ++order, updatedAt: now });
+    else if (!picks.has(p.id) && p.day === d) Object.assign(p, { day: null, order: 0, updatedAt: now });
+  }
+  if (d > trip.days) saveTrip({ days: d });
+  persist();
+  view = { kind: 'list' }; listMode = 'days'; renderMap(); renderPanel();
+  toast(`Day ${d}: ${picks.size} ${picks.size === 1 ? 'place' : 'places'}`);
+}
+function editDayTitle(btn) {
+  const d = +btn.dataset.daytitle;
+  btn.outerHTML = `<input type="text" class="dtitle-in" id="dt-${d}" value="${esc(dayTitle(d))}" placeholder="e.g. Old City temples" maxlength="40">`;
+  const inp = $('#dt-' + d); inp.focus();
+  let finished = false;
+  const store = () => { const titles = { ...trip.titles }; const v = inp.value.trim(); if (v) titles[d] = v; else delete titles[d]; saveTrip({ titles }); };
+  const done = save => { if (finished) return; finished = true; if (save) store(); renderPanel(); };
+  inp.addEventListener('change', store);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); done(true); } if (e.key === 'Escape') { e.preventDefault(); done(false); } });
+  inp.addEventListener('blur', () => done(true));
+}
 
 /* ---------- list modes, visited, days, location ---------- */
 const fmtDist = d => d < 1 ? `${Math.max(50, Math.round(d * 1000 / 50) * 50)} m` : `${d.toFixed(d < 10 ? 1 : 0)} km`;
@@ -524,20 +662,7 @@ function listBody() {
     const rows = shown.map(p => [km(me, p), p]).sort((a, b) => byVisit(a[1], b[1]) || a[0] - b[0]);
     return `<p class="lnote">Closest first, from where you are now (straight line).</p>` + rows.map(([d, p]) => itemHTML(p, fmtDist(d))).join('');
   }
-  if (listMode === 'days') {
-    const days = [...new Set(places.filter(p => p.day).map(p => p.day))].sort((a, b) => a - b);
-    let out = days.length ? '' : `<p class="lnote">Open a place and pick <b>Plan for → Day 1</b> to start a day plan. Each day gets its own route on the map.</p>`;
-    for (const d of days) {
-      const items = shown.filter(p => p.day === d).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
-      if (!items.length) continue;
-      out += `<div class="group day"><h3>Day ${d} <span>${items.length} ${items.length === 1 ? 'stop' : 'stops'}</span>
-        <button type="button" class="tchip" data-dayfocus="${dayFocus === d ? '' : d}" aria-pressed="${dayFocus === d}">${dayFocus === d ? 'Showing on map' : 'Show route'}</button></h3>` +
-        items.map((p, i) => itemHTML(p, `<span class="stopn">${i + 1}</span>`, `<span class="mv"><button type="button" data-move="${esc(p.id)}" data-dir="-1" aria-label="Move ${esc(p.name)} earlier" ${i ? '' : 'disabled'}>↑</button><button type="button" data-move="${esc(p.id)}" data-dir="1" aria-label="Move ${esc(p.name)} later" ${i < items.length - 1 ? '' : 'disabled'}>↓</button></span>`)).join('') + `</div>`;
-    }
-    const loose = shown.filter(p => !p.day).sort((a, b) => byVisit(a, b) || a.name.localeCompare(b.name));
-    if (loose.length) out += `<div class="group"><h3>Not planned yet <span>${loose.length}</span></h3>` + loose.map(p => itemHTML(p, distTxt(p))).join('') + `</div>`;
-    return out;
-  }
+  if (listMode === 'days') return daysBody(shown);
   const s = stayOf();
   let out = s ? '' : `<p class="lnote">Pin your stay and each place will show how far it is from your bed.</p>`;
   for (const c of CAT_KEYS) {
@@ -549,10 +674,6 @@ function listBody() {
   if (me) out += `<p class="lnote">Distances are straight-line from where you are.</p>`;
   else if (s) out += `<p class="lnote">Distances are straight-line from ${esc(s.name)}.</p>`;
   return out;
-}
-function dayOptions(cur) {
-  const max = Math.max(3, ...places.map(p => p.day || 0)) + 1;
-  return `<option value="">Not planned</option>` + Array.from({ length: Math.min(30, max) }, (_, i) => `<option value="${i + 1}" ${cur === i + 1 ? 'selected' : ''}>Day ${i + 1}</option>`).join('');
 }
 const nextOrder = (day, exceptId) => Math.max(0, ...places.filter(p => p.day === day && p.id !== exceptId).map(p => p.order || 0)) + 1;
 function updatePlace(id, patch) {
@@ -573,10 +694,12 @@ function moveStop(id, dir) {
 const routeLayer = L.layerGroup().addTo(map);
 function renderRoute() {
   routeLayer.clearLayers();
-  if (!dayFocus) return;
-  const stops = places.filter(p => p.day === dayFocus).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
-  if (stops.length < 2) return;
-  L.polyline(stops.map(p => [p.lat, p.lng]), { color: '#B86A59', weight: 3.5, opacity: .85, dashArray: '2 9', lineCap: 'round', interactive: false }).addTo(routeLayer);
+  const days = dayFocus ? [dayFocus] : listMode === 'days' ? Array.from({ length: tripDays() }, (_, k) => k + 1) : [];
+  for (const d of days) {
+    const stops = stopsOf(d).filter(visible);
+    if (stops.length < 2) continue;
+    L.polyline(stops.map(p => [p.lat, p.lng]), { color: dayColor(d), weight: dayFocus ? 4 : 3, opacity: dayFocus ? .9 : .7, dashArray: '2 9', lineCap: 'round', interactive: false }).addTo(routeLayer);
+  }
 }
 // "You are here": only starts after you tap the locate button (the browser asks first).
 let meWatch = null, meMarker = null, meCircle = null, meFirst = false;
@@ -675,7 +798,9 @@ async function copyViewLink() {
 async function loadViewOnly() {
   try {
     const rows = await sync.rpc('trip_view_get', { p_view: VIEW_CODE });
-    places = (Array.isArray(rows) ? rows : []).map(r => cleanPlace({ ...r.data, id: r.id })).filter(Boolean);
+    const all = Array.isArray(rows) ? rows : [];
+    const m = all.find(r => r.id === META_ID); if (m) trip = cleanTrip(m.data);
+    places = all.filter(r => r.id !== META_ID).map(r => cleanPlace({ ...r.data, id: r.id })).filter(Boolean);
     renderMap(); renderPanel();
     return true;
   } catch (e) {
@@ -1270,7 +1395,7 @@ for (const el of document.querySelectorAll('.ovl')) { L.DomEvent.disableClickPro
 
 /* ---------- export / import ---------- */
 $('#exportBtn').addEventListener('click', () => {
-  const data = { app: 'chiang-mai-trip-map', version: 2, exportedAt: new Date().toISOString(), places };
+  const data = { app: 'chiang-mai-trip-map', version: 3, trip, exportedAt: new Date().toISOString(), places };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1285,6 +1410,7 @@ $('#importFile').addEventListener('change', async e => {
   try {
     const data = JSON.parse(await file.text());
     const list = (Array.isArray(data) ? data : data.places || []).map(cleanPlace).filter(Boolean);
+    if (data && data.trip) saveTrip(data.trip);
     if (!list.length) { toast('No pins found in that file.'); return; }
     let added = 0, updated = 0;
     const now = Date.now();
@@ -1321,15 +1447,24 @@ document.querySelector('.panel').addEventListener('click', e => {
     renderMap(); renderPanel(); return;
   }
   const lm = t.closest('[data-listmode]');
-  if (lm) { listMode = lm.dataset.listmode; if (listMode === 'near' && !me) startLocate(); if (listMode !== 'days' && dayFocus) { dayFocus = null; renderMap(); } renderPanel(); return; }
+  if (lm) { listMode = lm.dataset.listmode; if (listMode === 'near' && !me) startLocate(); if (listMode !== 'days') dayFocus = null; renderMap(); renderPanel(); return; }
+  if (t.closest('[data-addday]')) { addDay(); return; }
+  const dadd = t.closest('[data-dayadd]'); if (dadd) { openDayPick(+dadd.dataset.dayadd); return; }
+  const dt = t.closest('[data-daytitle]'); if (dt) { editDayTitle(dt); return; }
+  const dd = t.closest('[data-delday]');
+  if (dd) { const d = +dd.dataset.delday, box = $('#dayact-' + d); box.innerHTML = `<span class="fine">Remove Day ${d}? Its places go back to “Not planned”.</span><button type="button" class="btn danger" data-deldayyes="${d}">Remove</button><button type="button" class="btn ghost" data-deldayno>Keep</button>`; return; }
+  const ddy = t.closest('[data-deldayyes]'); if (ddy) { removeDay(+ddy.dataset.deldayyes); return; }
+  if (t.closest('[data-deldayno]')) { renderPanel(); return; }
+  if (t.closest('[data-back-days]')) { view = { kind: 'list' }; listMode = 'days'; renderMap(); renderPanel(); return; }
+  if (t.closest('[data-dpsave]')) { saveDayPick(); return; }
   if (t.closest('[data-hidevisited]')) { hideVisited = !hideVisited; renderMap(); renderPanel(); return; }
   if (t.closest('[data-locate]')) { startLocate(); return; }
   const df = t.closest('[data-dayfocus]');
   if (df) {
     dayFocus = df.dataset.dayfocus ? +df.dataset.dayfocus : null;
     renderMap(); renderPanel();
-    const stops = places.filter(visible);
-    if (dayFocus && stops.length) map.flyToBounds(L.latLngBounds(stops.map(p => [p.lat, p.lng])).pad(0.3), { maxZoom: 16, duration: .7 });
+    const stops = dayFocus ? places.filter(visible) : places.filter(p => p.day && visible(p));
+    if (stops.length) map.flyToBounds(L.latLngBounds(stops.map(p => [p.lat, p.lng])).pad(0.3), { maxZoom: 16, duration: .7 });
     return;
   }
   const mv = t.closest('[data-move]');
@@ -1386,8 +1521,11 @@ document.querySelector('.panel').addEventListener('click', e => {
 });
 
 document.querySelector('.panel').addEventListener('change', e => {
+  if (e.target.id === 'trip-start') { saveTrip({ start: e.target.value }); renderPanel(); return; }
+  const dpk = e.target.closest?.('[data-dp]');
+  if (dpk && view.kind === 'daypick') { const pb = $('#pbody'), top = pb.scrollTop; dpk.checked ? view.picks.add(dpk.dataset.dp) : view.picks.delete(dpk.dataset.dp); renderPanel(); pb.scrollTop = top; return; }
   const sd = e.target.closest?.('[data-setday]');
-  if (sd) { const d = sd.value ? +sd.value : null; updatePlace(sd.dataset.setday, { day: d, order: d ? nextOrder(d, sd.dataset.setday) : 0 }); toast(d ? `Planned for Day ${d}` : 'Removed from the plan'); renderMap(); renderPanel(); return; }
+  if (sd) { const d = pickDay(sd.value); updatePlace(sd.dataset.setday, { day: d, order: d ? nextOrder(d, sd.dataset.setday) : 0 }); toast(d ? `Planned for Day ${d}` : 'Removed from the plan'); renderMap(); renderPanel(); return; }
   if (view.kind !== 'import') return;
   const t = e.target;
   const pb = $('#pbody'), top = pb.scrollTop;
@@ -1408,12 +1546,12 @@ window.addEventListener('storage', e => { if (e.key === STORAGE_KEY) { load(); i
     setInterval(() => { if (document.visibilityState === 'visible') loadViewOnly(); }, 60000);
     return;
   }
-  load();
+  load(); loadTrip();
   await seedOnFirstVisit();
   renderMap(); renderPanel();
   if (places.length) fitAll();
   sync.startSync({
-    getPlaces: () => places,
+    getPlaces: () => (trip.updatedAt ? [...places, { ...trip, id: META_ID, name: 'trip settings' }] : places),
     applyRemote,
     onStatus: renderStatus,
     onJoined: () => { view = { kind: 'sync' }; draft = null; renderPanel(); toast('This device is now synced with your trip'); },
