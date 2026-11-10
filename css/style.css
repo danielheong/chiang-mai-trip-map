@@ -397,7 +397,7 @@ button{cursor:pointer}
 }
 
 /* ---------- view-only shared map ---------- */
-.viewonly #addBtn,.viewonly #syncBtn,.viewonly .wide-only,.viewonly [data-edit],.viewonly [data-adopt],.viewonly [data-visit],.viewonly .daypick,.viewonly .mv,.viewonly #importFile{display:none!important}
+.viewonly #addBtn,.viewonly #syncBtn,.viewonly #spendBtn,.viewonly .wide-only,.viewonly [data-edit],.viewonly [data-adopt],.viewonly [data-visit],.viewonly .daypick,.viewonly .mv,.viewonly #importFile{display:none!important}
 .viewonly .pfoot{pointer-events:none}
 .offl{border-top:1.5px dashed var(--line);margin-top:6px;padding-top:12px}
 
@@ -447,3 +447,67 @@ button{cursor:pointer}
 .joinhint{margin:4px 2px 10px;padding:12px 14px;border-radius:16px;background:var(--c-see);border:1.5px solid color-mix(in srgb,var(--mustard) 70%,var(--ink))}
 .joinhint b{font-family:var(--f-hand);font-weight:400;font-size:19px}
 .joinhint p{margin:4px 0 8px;font-size:13.5px}
+
+/* ---------- private spending log (js/expenses.js) ---------- */
+.xtotal{background:var(--c-nature);border:1.6px solid color-mix(in srgb,var(--sage-dk) 55%,transparent);border-radius:var(--wobble);padding:12px 18px;display:grid;gap:0}
+.xtotal span{font-family:var(--f-hand);font-size:17px;color:var(--sage-dk)}
+.xtotal b{font-family:var(--f-title);font-size:44px;line-height:1;letter-spacing:.04em;font-variant-numeric:tabular-nums}
+.xtotal small{color:var(--muted);font-size:13px;margin-top:4px}
+.xcats{display:grid;gap:5px}
+.xcat{display:grid;grid-template-columns:minmax(0,9.5em) 1fr auto;gap:8px;align-items:center;font-size:13px}
+.xcat span{font-family:var(--f-hand);font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.xcat i{height:12px;background:var(--paper-2);border-radius:8px;overflow:hidden;display:block}
+.xcat i b{display:block;height:100%;border-radius:8px;border:1px solid color-mix(in srgb,var(--ink) 25%,transparent)}
+.xcat em{font-style:normal;font-variant-numeric:tabular-nums;color:var(--muted);white-space:nowrap}
+.xadd{display:grid;gap:8px;border:1.5px dashed var(--line);border-radius:18px;padding:12px;margin:0}
+.xadd .l{margin:0}
+.xline{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+.form .xin{width:100%;min-width:0;border:1.5px solid var(--line);background:var(--paper);border-radius:14px;padding:9px 12px;font:inherit;font-size:16px;color:var(--ink);min-height:42px}
+.form .xin:focus{border-color:var(--accent);outline:none}
+.form #x-amount{font-family:var(--f-hand);font-size:22px;padding:4px 12px;font-variant-numeric:tabular-nums}
+.spend .group h3{justify-content:space-between;margin:10px 6px 2px}
+.xrow{display:flex;align-items:center;gap:2px;border-radius:16px}
+.xrow.sel{background:var(--paper-2)}
+.xitem{flex:1;min-width:0;border:0;background:none;text-align:left;border-radius:16px;padding:7px 8px;display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:10px;align-items:center}
+.xitem:hover{background:var(--paper-2)}
+.xdot{width:14px;height:14px;border-radius:50%;border:1.3px solid color-mix(in srgb,var(--ink) 55%,transparent)}
+.xw{display:grid;min-width:0}
+.xw b{font-family:var(--f-hand);font-weight:400;font-size:18px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xw small,.xamt small{color:var(--muted);font-size:12.5px}
+.xamt{font-family:var(--f-hand);font-size:18px;text-align:right;font-variant-numeric:tabular-nums;display:grid;white-space:nowrap}
+.xdel{flex:none;width:34px;height:34px;border:0;background:none;border-radius:50%;color:var(--muted);font-size:22px;line-height:1}
+.xdel:hover{background:var(--paper-2);color:var(--danger)}
+.xset{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;border-top:1.5px dashed var(--line);padding-top:12px}
+.xrate{display:flex;align-items:center;gap:8px;font-family:var(--f-hand);font-size:17px}
+.form .xrate .xin{width:5.2em;text-align:right;padding:5px 10px;min-height:36px}
+.spend .fine{font-size:13px;color:var(--muted);margin:0}
+/* three header buttons (Spend, Sync, Add) have to fit a phone-width header */
+@media (max-width:860px){.top-actions{gap:5px}.top-actions .btn{padding:6px 9px}}
+@media (max-width:380px){.brand .wave{display:none}}
+.xsync{display:grid;gap:8px;border-top:1.5px dashed var(--line);padding-top:12px}
+.xsync .l{margin:0}
+.xsync .fine{font-size:13px;color:var(--muted);margin:0}
+.xsync .btn{padding:6px 14px}
+.xjoin{grid-template-columns:minmax(0,1fr) auto}
+.xstline{margin:0;display:flex;align-items:center;gap:8px;font-size:14px}
+.xst{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+.xst.ok{background:var(--ok)}.xst.error{background:var(--danger)}.xst.syncing{background:var(--mustard)}
+.xtotal span em{font-style:normal;color:var(--muted);font-size:15px}
+.xtotal small strong{color:var(--ink)}
+.xtotal.over{background:var(--c-eat);border-color:color-mix(in srgb,var(--danger) 55%,transparent)}
+.xtotal.over span{color:var(--danger)}
+.xbar{position:relative;display:block;height:14px;margin:8px 0 2px;background:var(--card);border:1.3px solid color-mix(in srgb,var(--ink) 45%,transparent);border-radius:9px;overflow:hidden}
+.xbar b,.xbar u{position:absolute;inset:0 auto 0 0;display:block;height:auto;font-size:0;text-decoration:none}
+.xbar u{background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--sage-dk) 30%,transparent) 0 4px,transparent 4px 8px)}
+.xbar b{background:var(--sage-dk);border-radius:0 7px 7px 0}
+.xtotal.over .xbar b{background:var(--danger)}
+.xcat i{position:relative}
+.xcat i u{position:absolute;inset:0 auto 0 0;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--ink) 22%,transparent) 0 3px,transparent 3px 6px);border-radius:8px}
+.xcat i b{position:relative}
+.xcat em small{font-size:12px}
+.xchk{display:flex;align-items:flex-start;gap:9px;font-family:var(--f-hand);font-size:17px;line-height:1.2;cursor:pointer}
+.xchk input{width:20px;height:20px;accent-color:var(--accent-dk);margin:1px 0 0;flex:none}
+.xchk small{display:block;font-family:var(--f-body);font-size:12.5px;color:var(--muted)}
+.xplan .fine{margin:0 6px 4px}
+.xplan .xitem{opacity:.8}
+.xplan .xdot{border-style:dashed}

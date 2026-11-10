@@ -2,10 +2,11 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611080203';
-import { watercolorStyle } from './mapstyle.js?v=202611080203';
-import * as sync from './sync.js?v=202611080203';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611080203';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611101156';
+import { watercolorStyle } from './mapstyle.js?v=202611101156';
+import * as sync from './sync.js?v=202611101156';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611101156';
+import * as spend from './expenses.js?v=202611101156';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -420,6 +421,7 @@ function renderPanel() {
   if (view.kind === 'sync') { renderSyncPanel(head, body); body.insertAdjacentHTML('beforeend', offlineHTML() + shareHTML()); return; }
   if (view.kind === 'import') { renderImportPanel(head, body); return; }
   if (view.kind === 'daypick') { renderDayPick(head, body); return; }
+  if (view.kind === 'spend') { spend.render(head, body, view); return; }
 
   if (view.kind === 'detail') {
     const p = places.find(x => x.id === view.id);
@@ -1548,6 +1550,10 @@ $('#bannerCancel').addEventListener('click', () => setMode('browse'));
 const openSync = () => { draft = null; setMode('browse'); view = { kind: 'sync' }; renderMap(); renderPanel(); setSheet('half'); };
 $('#syncBtn').addEventListener('click', openSync);
 $('#pfoot').addEventListener('click', openSync);
+// Personal spending log: private to this device, never synced or shared (js/expenses.js).
+const spendCtx = () => ({ view, toast, toastAction, copyText, rerender: renderPanel });
+$('#spendBtn').addEventListener('click', () => { draft = null; setMode('browse'); view = { kind: 'spend', edit: null }; renderMap(); renderPanel(); setSheet('full'); });
+document.querySelector('.panel').addEventListener('submit', e => { if (e.target.matches('[data-xform]')) { e.preventDefault(); if (view.kind === 'spend') spend.onSubmit(e.target, spendCtx()); } });
 $('#ideasBtn').addEventListener('click', e => { showIdeas = !showIdeas; e.currentTarget.setAttribute('aria-pressed', showIdeas); renderMap(); });
 $('#zfit').addEventListener('click', fitAll);
 $('#locBtn').addEventListener('click', startLocate);
@@ -1555,6 +1561,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && mode !== '
 
 document.querySelector('.panel').addEventListener('click', e => {
   const t = e.target;
+  if (view.kind === 'spend' && spend.onClick(t, spendCtx())) return;
   const f = t.closest('[data-f]');
   if (f) {
     const c = f.dataset.f;
@@ -1641,6 +1648,7 @@ document.querySelector('.panel').addEventListener('click', e => {
 });
 
 document.querySelector('.panel').addEventListener('change', e => {
+  if (view.kind === 'spend') { spend.onChange(e.target, spendCtx()); return; }
   if (e.target.id === 'trip-start') { saveTrip({ start: e.target.value }); renderPanel(); return; }
   const dpk = e.target.closest?.('[data-dp]');
   if (dpk && view.kind === 'daypick') { const pb = $('#pbody'), top = pb.scrollTop; dpk.checked ? view.picks.add(dpk.dataset.dp) : view.picks.delete(dpk.dataset.dp); renderPanel(); pb.scrollTop = top; return; }
@@ -1666,7 +1674,7 @@ window.addEventListener('storage', e => { if (e.key === STORAGE_KEY) { load(); i
     setInterval(() => { if (document.visibilityState === 'visible') loadViewOnly(); }, 60000);
     return;
   }
-  load(); loadTrip();
+  load(); loadTrip(); spend.load();
   await seedOnFirstVisit();
   renderMap(); renderPanel();
   if (places.length) fitAll();
@@ -1677,4 +1685,10 @@ window.addEventListener('storage', e => { if (e.key === STORAGE_KEY) { load(); i
     onJoined: () => { view = { kind: 'sync' }; draft = null; renderPanel(); toast('This device is now synced with your trip'); },
   });
   renderStatus(sync.getStatus());
+  // Private spending sync: its own secret code, never the trip code.
+  spend.startSync({
+    onChange: () => { if (view.kind === 'spend') spend.keepForm(renderPanel); },
+    onJoined: () => { draft = null; view = { kind: 'spend', edit: null }; renderPanel(); setSheet('full'); toast('This device now shows your private spending'); },
+    onPrefill: () => { draft = null; view = { kind: 'spend', edit: null }; renderPanel(); setSheet('full'); toast('Added to your private spending'); },
+  });
 })();
