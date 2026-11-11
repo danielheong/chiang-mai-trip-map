@@ -528,5 +528,23 @@ button{cursor:pointer}
 .tricon .nm{position:absolute;left:30px;top:4px;white-space:nowrap;font-family:var(--f-hand);font-size:14px;line-height:1.2;color:#3E566E;pointer-events:none;
   text-shadow:0 0 3px var(--paper),0 0 3px var(--paper),0 0 5px var(--paper)}
 .tricon .nm.clash,.hide-tr-names .tricon .nm{visibility:hidden}
-.tricon.stop i{display:block;width:8px;height:8px;margin:5px;border-radius:50%;background:#4F6F8F;border:1.5px solid var(--card);box-shadow:0 0 0 1px rgba(79,111,143,.35)}
+/* bus stops: a small white sign with a blue bus, lighter than the solid terminal badges */
+.tricon.stop .tb{width:20px;height:20px;border-radius:6px;background:var(--card);color:#4F6F8F;border:1.5px solid #4F6F8F;box-shadow:0 1px 2px rgba(74,64,54,.25)}
+.tricon.stop .tb svg{width:13px;height:13px}
+.tricon.sel .tb{outline:3px solid var(--mustard);outline-offset:1px;scale:1.2}
+.tricon.sel .nm{visibility:visible!important;left:28px;top:1px;font-size:15px;color:var(--ink)}
+.trlegend{left:12px;top:62px;max-width:calc(100% - 76px);display:flex;flex-wrap:wrap;gap:3px 10px;align-items:center;background:color-mix(in srgb,var(--card) 92%,transparent);border:1.5px solid var(--line);border-radius:14px;padding:5px 10px;font-family:var(--f-hand);font-size:14px;color:var(--ink);box-shadow:var(--shadow);pointer-events:none}
+.trlegend span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.trlegend .lg{width:12px;height:12px;border-radius:4px;background:#4F6F8F;flex:none}
+.trlegend .lg.k-plane{background:#3F7F8C}.trlegend .lg.k-train{background:#7A5C8F}.trlegend .lg.k-songthaew{background:#B5574A}.trlegend .lg.k-taxi{background:#8A8170}
+.trlegend .lg.k-stop{background:var(--card);border:1.5px solid #4F6F8F}
+.trlegend em{display:none;font-style:normal;color:var(--muted);flex-basis:100%}
+.trlegend.zoomhint em{display:block}
+.trlegend.zoomhint span:has(.k-stop){opacity:.45}
+@media (max-width:860px){.trlegend{left:max(10px,env(safe-area-inset-left,0px));font-size:13px}}
 @media (max-width:860px){.trbtn{right:max(10px,env(safe-area-inset-right,0px));top:154px;bottom:auto}}
+.trlegend{z-index:1000}
+.idea .hero .trdot{border-radius:18px;background:#4F6F8F;color:#fff}
+.idea .hero .trdot svg{width:56%;height:56%}
+.idea .hero .trdot.k-train{background:#7A5C8F}.idea .hero .trdot.k-plane{background:#3F7F8C}.idea .hero .trdot.k-songthaew{background:#B5574A}.idea .hero .trdot.k-taxi{background:#8A8170}
+.idea .hero .trdot.k-stop{background:var(--card);color:#4F6F8F;border:2px solid #4F6F8F}

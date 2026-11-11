@@ -2,11 +2,11 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611112203';
-import { watercolorStyle } from './mapstyle.js?v=202611112203';
-import * as sync from './sync.js?v=202611112203';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611112203';
-import * as spend from './expenses.js?v=202611112203';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611112208';
+import { watercolorStyle } from './mapstyle.js?v=202611112208';
+import * as sync from './sync.js?v=202611112208';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611112208';
+import * as spend from './expenses.js?v=202611112208';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -290,10 +290,11 @@ function renderMap() {
   if (view.kind === 'preview') {
     const i = view.item;
     const already = places.some(p => i.ideaId && p.ideaId === i.ideaId);
-    if (!already) L.marker([i.lat, i.lng], { icon: pinIcon({ ...i, id: '__preview' }, ' temp'), zIndexOffset: 1000, interactive: false }).addTo(pinLayer);
+    if (!already && i.source !== 'transit') L.marker([i.lat, i.lng], { icon: pinIcon({ ...i, id: '__preview' }, ' temp'), zIndexOffset: 1000, interactive: false }).addTo(pinLayer);
   }
   bounceId = null;
   renderRoute();
+  renderTransit();
   setTimeout(declutterLabels, 0);
 }
 
@@ -315,29 +316,35 @@ const trGlyph = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${TR_GLYPH[k] 
 const KIND_LABEL = { plane: 'Airport', train: 'Train station', bus: 'Bus terminal', songthaew: 'Songthaew stand', taxi: 'Taxi stand', stop: 'Bus stop' };
 function trOpen(kind, name, lat, lng, blurb) {
   if (mode !== 'browse') return;
-  openPreview({ name, cat: 'other', icon: kind === 'songthaew' ? 'songthaew' : null, lat, lng, exact: true, source: 'transit', area: KIND_LABEL[kind], blurb }, false);
+  openPreview({ name, cat: 'other', icon: kind === 'songthaew' ? 'songthaew' : null, lat, lng, exact: true, source: 'transit', trKind: kind, area: KIND_LABEL[kind], blurb }, false);
 }
 function renderTransit() {
   transitLayer.clearLayers();
+  $('#trLegend').hidden = !showTransit || !transit;
   if (!showTransit || !transit) return;
   const z = map.getZoom();
   mapEl.classList.toggle('hide-tr-names', z < 13);
+  $('#trLegend').classList.toggle('zoomhint', z < 15);
+  // The one you tapped is highlighted and keeps its name showing.
+  const picked = view.kind === 'preview' && view.item.source === 'transit' ? view.item : null;
+  const isSel = (lat, lng) => picked && picked.lat === lat && picked.lng === lng ? ' sel' : '';
   for (const h of transit.hubs) {
     L.marker([h.lat, h.lng], { title: h.name, zIndexOffset: 40, riseOnHover: true,
-      icon: L.divIcon({ className: `tricon hub k-${h.kind}`, iconSize: [26, 26], iconAnchor: [13, 13], html: `<span class="tb">${trGlyph(h.kind)}</span><span class="nm">${esc(h.name)}</span>` }) })
+      icon: L.divIcon({ className: `tricon hub k-${h.kind}${isSel(h.lat, h.lng)}`, iconSize: [26, 26], iconAnchor: [13, 13], html: `<span class="tb">${trGlyph(h.kind)}</span><span class="nm">${esc(h.name)}</span>` }) })
       .on('click', () => trOpen(h.kind, h.name, h.lat, h.lng, h.blurb)).addTo(transitLayer);
   }
   if (z >= 14) for (const [lat, lng, name] of transit.taxis) {
     L.marker([lat, lng], { title: name, zIndexOffset: 20,
-      icon: L.divIcon({ className: 'tricon k-taxi small', iconSize: [20, 20], iconAnchor: [10, 10], html: `<span class="tb">${trGlyph('taxi')}</span>` }) })
+      icon: L.divIcon({ className: `tricon k-taxi small${isSel(lat, lng)}`, iconSize: [20, 20], iconAnchor: [10, 10], html: `<span class="tb">${trGlyph('taxi')}</span>${isSel(lat, lng) ? `<span class="nm">${esc(name)}</span>` : ''}` }) })
       .on('click', () => trOpen('taxi', name, lat, lng, 'Metered taxi stand. Grab and Bolt also work across the city.')).addTo(transitLayer);
   }
   if (z >= 15) {
     const b = map.getBounds().pad(0.15);
     for (const [lat, lng, name] of transit.stops) {
       if (!b.contains([lat, lng])) continue;
-      L.marker([lat, lng], { title: name || 'Bus stop', zIndexOffset: 10,
-        icon: L.divIcon({ className: 'tricon stop', iconSize: [18, 18], iconAnchor: [9, 9], html: '<i></i>' }) })
+      const sel = isSel(lat, lng);
+      L.marker([lat, lng], { title: name ? `Bus stop: ${name}` : 'Bus stop', zIndexOffset: sel ? 60 : 10,
+        icon: L.divIcon({ className: `tricon stop${sel}`, iconSize: [20, 20], iconAnchor: [10, 10], html: `<span class="tb">${trGlyph('bus')}</span>${sel ? `<span class="nm">${esc(name || 'Bus stop')}</span>` : ''}` }) })
         .on('click', () => trOpen('stop', name || 'Bus stop', lat, lng, 'City bus stop. Buses can be infrequent; red songthaews can be flagged down on most main roads.')).addTo(transitLayer);
     }
   }
@@ -513,7 +520,7 @@ function renderPanel() {
     const d = distTxt(i);
     head.innerHTML = `<button type="button" class="back" data-back>‹ My places</button>`;
     body.innerHTML = `<div class="idea">
-      <div class="hero">${dotHTML(i.cat)}<div><span class="tag">${src} · ${CATS[i.cat].label}</span>
+      <div class="hero">${i.source === 'transit' ? `<span class="dot trdot k-${i.trKind}">${trGlyph(i.trKind === 'stop' ? 'bus' : i.trKind)}</span>` : dotHTML(i.cat)}<div><span class="tag">${src}${i.source === 'transit' ? '' : ' · ' + CATS[i.cat].label}</span>
       <h3>${esc(i.name)}</h3></div></div>${i.area ? `<p class="fine" style="margin-top:-6px">${esc(i.area)}</p>` : ''}${i.blurb ? `<p>${esc(i.blurb)}</p>` : ''}
       ${d ? `<p class="fine">About ${d} from your stay, as the crow flies.</p>` : ''}
       <div class="row">${saved ? `<button type="button" class="btn" data-open="${esc(saved.id)}">Already on your map · open</button>` : `<button type="button" class="btn primary" data-adopt>Add to my map</button>`}
