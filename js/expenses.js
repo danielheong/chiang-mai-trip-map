@@ -5,7 +5,7 @@
 // Entries are encrypted on the device (AES-GCM, key derived from the code) before upload,
 // and stored under a namespace also derived from the code, so the server holds only
 // scrambled text and never sees the code. Same trip_get/trip_put functions as the pins.
-import { rpc, isConfigured } from './sync.js?v=202611112202';
+import { rpc, isConfigured } from './sync.js?v=202611112203';
 
 const KEY = 'cm-trip-map-expenses';
 const SET_KEY = 'cm-trip-map-expenses-set';
@@ -186,6 +186,12 @@ export function onClick(t, ctx) {
   if (t.closest('[data-xnewcode]')) { setCode(newCode()); ctx.rerender(); ctx.toast('Spending sync is on. Now link your other device.'); return true; }
   if (t.closest('[data-xjoin]')) {
     const inp = document.querySelector('#x-code');
+    const pre = prefillFrom(inp.value);
+    if (pre) {
+      const n = addPrefill(pre);
+      if (!n) { ctx.toast('That pre-fill code didn’t work, or it’s already added.'); return true; }
+      schedule(); ctx.rerender(); ctx.toast('Added to your private spending'); return true;
+    }
     if (!setCode(codeFrom(inp.value))) { ctx.toast('That code looks too short. It has 24 letters and numbers.'); inp.focus(); return true; }
     ctx.rerender(); ctx.toast('Linked. Fetching your spending…'); return true;
   }
@@ -379,16 +385,22 @@ function addFromLink() {
   const m = location.hash.match(/^#addspend=([A-Za-z0-9_-]+)$/);
   if (!m) return 0;
   history.replaceState(null, '', location.pathname + location.search);
+  return addPrefill(m[1]);
+}
+// The same pre-fill, pasted as a bare code (handy in the iPhone home-screen app, which links can't open).
+const prefillFrom = raw => (String(raw).match(/(?:#addspend=)?(eyJ[A-Za-z0-9_-]{20,})/) || [])[1] || '';
+function addPrefill(code) {
   try {
-    const bin = atob(m[1].replace(/-/g, '+').replace(/_/g, '/'));
+    const bin = atob(code.replace(/-/g, '+').replace(/_/g, '/'));
     const data = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))));
     const have = new Set(items.map(x => x.id)), tombs = read(TOMB_KEY, {});
     const fresh = (Array.isArray(data.items) ? data.items : []).slice(0, 50)
       .map(x => clean({ ...x, createdAt: Date.now(), updatedAt: Date.now() })).filter(x => x && !have.has(x.id) && !(x.id in tombs));
-    if (+data.budget > 0 && !budget) { budget = Math.round(+data.budget); rateAt = Date.now(); }
+    const setBudget = +data.budget > 0 && !budget;
+    if (setBudget) { budget = Math.round(+data.budget); rateAt = Date.now(); }
     items = [...items, ...fresh];
     store();
-    return fresh.length || (+data.budget > 0 ? 1 : 0);
+    return fresh.length + (setBudget ? 1 : 0);
   } catch { return 0; }
 }
 
@@ -398,7 +410,7 @@ function syncHTML() {
     <span class="l">On my other devices</span>
     <p class="fine">See this log on your phone and laptop. It uses its own secret code, separate from the trip code, and entries are encrypted before they leave this device.</p>
     <div class="row"><button type="button" class="btn" data-xnewcode>Turn on private sync</button></div>
-    <div class="xline xjoin"><input class="xin" id="x-code" type="text" placeholder="Or paste a spending code or link" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Spending code or link"><button type="button" class="btn ghost" data-xjoin>Link</button></div>
+    <div class="xline xjoin"><input class="xin" id="x-code" type="text" placeholder="Or paste a spending code, link or pre-fill code" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Spending code, link or pre-fill code"><button type="button" class="btn ghost" data-xjoin>Link</button></div>
   </div>`;
   return `<div class="xsync">
     <span class="l">On my other devices</span>
