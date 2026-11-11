@@ -5,7 +5,7 @@
 // Entries are encrypted on the device (AES-GCM, key derived from the code) before upload,
 // and stored under a namespace also derived from the code, so the server holds only
 // scrambled text and never sees the code. Same trip_get/trip_put functions as the pins.
-import { rpc, isConfigured } from './sync.js?v=202611120012';
+import { rpc, isConfigured } from './sync.js?v=202611120019';
 
 const KEY = 'cm-trip-map-expenses';
 const SET_KEY = 'cm-trip-map-expenses-set';

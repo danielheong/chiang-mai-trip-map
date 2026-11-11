@@ -2,14 +2,14 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611120012';
-import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611120012';
-import * as sync from './sync.js?v=202611120012';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611120012';
-import * as spend from './expenses.js?v=202611120012';
-import * as ess from './essentials.js?v=202611120012';
-import * as bills from './bills.js?v=202611120012';
-import { routeFor, legText, totalText } from './routing.js?v=202611120012';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611120019';
+import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611120019';
+import * as sync from './sync.js?v=202611120019';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611120019';
+import * as spend from './expenses.js?v=202611120019';
+import * as ess from './essentials.js?v=202611120019';
+import * as bills from './bills.js?v=202611120019';
+import { routeFor, legText, totalText } from './routing.js?v=202611120019';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -102,6 +102,7 @@ let showIdeas = false;   // built-in suggestions are opt-in (Ideas button), to k
 const hasTagMatch = p => !tagFilter.size || (p.tags || []).some(t => tagFilter.has(t.toLowerCase()));
 const visible = p => filters.has(p.cat) && hasTagMatch(p) && !(hideVisited && p.visited) && (dayFocus == null || p.day === dayFocus);
 let bounceId = null;
+let fxPin = null;      // { id, kind: 'visit' | 'fav' }: a one-off flourish on that pin at the next map render
 
 /* ---------- storage ---------- */
 function load() {
@@ -244,7 +245,7 @@ function pinIcon(p, extra = '') {
   const bob = bounceId === p.id ? 'bob' : '';
   const heart = p.fav ? `<svg class="fav" viewBox="0 0 24 24" aria-label="Must-go"><path d="M12 20.5 4.2 13A4.8 4.8 0 0 1 12 6.8a4.8 4.8 0 0 1 7.8 6.2z" fill="#E58C7E" stroke="#4A4036" stroke-width="1.4" stroke-linejoin="round"/></svg>` : '';
   return L.divIcon({
-    className: `pinicon${sel}${p.fav ? ' fav' : ''}${p.visited ? ' visited' : ''}${extra}`,
+    className: `pinicon${sel}${p.fav ? ' fav' : ''}${p.visited ? ' visited' : ''}${fxPin && fxPin.id === p.id ? ' fx-' + fxPin.kind : ''}${extra}`,
     iconSize: [48, 48], iconAnchor: [24, 44],
     html: `<div class="pin"><div class="${bob}">${svgArt(artOf(p), 'art')}${heart}${p.visited ? '<span class="vtick" aria-label="Visited">✓</span>' : ''}${p.day && (listMode === 'days' || dayFocus) ? `<span class="dbadge" style="background:${dayColor(p.day)}">${p.day}</span>` : ''}<span class="nm" title="${esc(p.name)}">${esc(shortName(p.name) || 'New place')}</span></div></div>`,
   });
@@ -303,7 +304,7 @@ function renderMap() {
     const already = places.some(p => i.ideaId && p.ideaId === i.ideaId);
     if (!already && i.source !== 'transit') L.marker([i.lat, i.lng], { icon: pinIcon({ ...i, id: '__preview' }, ' temp'), zIndexOffset: 1000, interactive: false }).addTo(pinLayer);
   }
-  bounceId = null;
+  bounceId = null; fxPin = null;
   renderRoute();
   renderTransit();
   setTimeout(declutterLabels, 0);
@@ -876,7 +877,7 @@ function setTheme(pref, from) {
   const change = () => { applyTheme(); renderPanel(); };
   if (was === isNight()) { change(); return; }
   const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!calm && isNight()) releaseLanterns();
+  if (!calm) { if (isNight()) releaseLanterns(); else drift('sunrise', 1, 4000); }
   if (calm || !document.startViewTransition || document.visibilityState !== 'visible') { change(); return; }
   const r = from?.getBoundingClientRect?.(), x = r ? r.left + r.width / 2 : innerWidth / 2, y = r ? r.top + r.height / 2 : innerHeight / 2;
   const R = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
@@ -894,6 +895,16 @@ function releaseLanterns() {
   document.body.appendChild(box);
   setTimeout(() => box.remove(), 11000);
 }
+// Small celebrations: lanterns rise at night, frangipani petals fall by day.
+const calmMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+function drift(cls, n, life) {
+  const box = document.createElement('div');
+  box.className = cls; box.setAttribute('aria-hidden', 'true');
+  box.innerHTML = Array.from({ length: n }, () => `<i style="left:${(5 + Math.random() * 88).toFixed(1)}%;--d:${(Math.random() * 1.4).toFixed(2)}s;--t:${(4 + Math.random() * 2.5).toFixed(2)}s;--s:${(.6 + Math.random() * .6).toFixed(2)};--x:${Math.round(Math.random() * 90 - 45)}px;--r:${Math.round(Math.random() * 360)}deg"></i>`).join('');
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), life);
+}
+function celebrate() { if (calmMotion()) return; if (isNight()) releaseLanterns(); else drift('petals', 12, 9000); }
 darkMQ.addEventListener('change', () => { if (themePref === 'auto') { applyTheme(); if (view.kind === 'trip') renderPanel(); } });
 
 function openAddMenu() {
@@ -1217,7 +1228,14 @@ function listBody() {
 const nextOrder = (day, exceptId) => Math.max(0, ...places.filter(p => p.day === day && p.id !== exceptId).map(p => p.order || 0)) + 1;
 function updatePlace(id, patch) {
   const p = places.find(x => x.id === id); if (!p) return null;
-  return savePlace({ ...p, ...patch });
+  const saved = savePlace({ ...p, ...patch });
+  if (patch.visited && !p.visited) {
+    fxPin = { id, kind: 'visit' };
+    // The last stop of a planned day: a small send-off.
+    const stops = p.day ? places.filter(x => x.day === p.day) : [];
+    if (stops.length > 1 && stops.every(x => x.visited)) setTimeout(() => { celebrate(); toast(`Day ${p.day} done. Every stop visited.`); }, 450);
+  } else if (patch.fav && !p.fav) fxPin = { id, kind: 'fav' };
+  return saved;
 }
 function moveStop(id, dir) {
   const p = places.find(x => x.id === id); if (!p || !p.day) return;
@@ -2021,7 +2039,7 @@ $('#pfoot').addEventListener('click', openSync);
 // Personal spending log: private to this device, never synced or shared (js/expenses.js).
 const spendCtx = () => ({ view, toast, toastAction, copyText, rerender: renderPanel, openBills: () => openBills(), moveSplit });
 // Shared bills for the two travellers (js/bills.js): synced with the trip code, encrypted.
-const billsCtx = () => ({ view, toast, toastAction, rerender: renderPanel, cats: spend.XCATS });
+const billsCtx = () => ({ view, toast, toastAction, rerender: renderPanel, cats: spend.XCATS, celebrate });
 function openBills() { draft = null; setMode('browse'); view = { kind: 'bills', edit: null }; renderMap(); renderPanel(); setSheet('full'); bills.syncNow(); }
 // Old "split in two" spending entries become shared bills paid by this device's person.
 function moveSplit(list) {

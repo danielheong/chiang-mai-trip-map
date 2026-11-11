@@ -799,3 +799,36 @@ html.theming::view-transition-new(root){z-index:2}
 :root[data-theme="night"] .btn.primary:hover{background:color-mix(in srgb,var(--accent) 88%,#000)}
 :root[data-theme="night"] .toast{background:#F4EEDF;color:#3F3A31}
 :root[data-theme="night"] input,:root[data-theme="night"] select,:root[data-theme="night"] textarea{color-scheme:dark}
+
+/* ---------- small moments ---------- */
+.petals,.sunrise{position:fixed;inset:0;pointer-events:none;z-index:4800;overflow:hidden}
+.petals i{position:absolute;top:-30px;width:15px;height:21px;border-radius:85% 8% 85% 8%;
+  background:radial-gradient(ellipse at 20% 85%,#F6D36B 0 16%,#FFF8EC 48%,#F6CADA 100%);
+  box-shadow:0 1px 2px rgba(74,64,54,.18);scale:var(--s);opacity:0;animation:petal var(--t) cubic-bezier(.4,.1,.6,1) var(--d) forwards}
+@keyframes petal{0%{translate:0 0;rotate:var(--r);opacity:0}10%{opacity:.95}50%{translate:var(--x) 52vh;rotate:calc(var(--r) + 160deg)}88%{opacity:.85}100%{translate:calc(var(--x) * -.5) 112vh;rotate:calc(var(--r) + 330deg);opacity:0}}
+.sunrise i{position:absolute;left:50%!important;bottom:-90px;width:84px;height:84px;margin-left:-42px;border-radius:50%;
+  background:radial-gradient(circle,#FFF6CF 0 38%,#FBD77A 70%,#F4B95A 100%);
+  box-shadow:0 0 40px 18px rgba(251,215,122,.5),0 0 110px 50px rgba(251,215,122,.25);opacity:0;animation:sunrise 3s cubic-bezier(.2,.6,.3,1) .15s forwards}
+@keyframes sunrise{0%{translate:0 0;opacity:0}20%{opacity:.9}70%{opacity:.75}100%{translate:26vw -92vh;opacity:0}}
+@media (prefers-reduced-motion:no-preference){
+  /* visited: the tick lands like a stamp and a ring spreads out */
+  .pinicon.fx-visit .vtick{animation:stamp .55s cubic-bezier(.3,1.5,.5,1) both}
+  .pinicon.fx-visit .pin::after{content:"";position:absolute;left:24px;top:24px;width:44px;height:44px;margin:-22px;border-radius:50%;border:2.5px solid var(--ok);pointer-events:none;animation:ring .8s ease-out both}
+  /* must-go: the heart pops */
+  .pinicon.fx-fav .fav{animation:heartpop .6s cubic-bezier(.3,1.6,.5,1) both}
+  /* a new pin lands with a ripple */
+  .pinicon .bob::after{content:"";position:absolute;left:24px;top:43px;width:26px;height:10px;margin:-5px -13px;border-radius:50%;border:2px solid var(--accent-dk);pointer-events:none;opacity:0;animation:ripple .8s .3s ease-out both}
+  /* the tab you pick gives a small hop */
+  .tab[aria-current="page"] svg{animation:tabhop .32s cubic-bezier(.3,1.5,.5,1)}
+  /* a few stars come out beside the title at night */
+  :root[data-theme="night"] .brand h1{position:relative}
+  :root[data-theme="night"] .brand h1::after{content:"";position:absolute;left:calc(100% + 10px);top:2px;width:3px;height:3px;border-radius:50%;background:#FFE9A8;
+    box-shadow:16px 9px 0 -.5px #FFF3CF,34px -1px 0 0 #FFE9A8,55px 11px 0 -1px #FFF3CF,74px 3px 0 -.5px #FFE9A8;animation:twinkle 2.8s ease-in-out infinite alternate}
+}
+:root[data-theme="night"] .brand .wave{opacity:.35}
+@keyframes stamp{0%{transform:scale(2.6) rotate(-28deg);opacity:0}55%{transform:scale(.85) rotate(4deg);opacity:1}100%{transform:none}}
+@keyframes ring{0%{transform:scale(.3);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+@keyframes heartpop{0%{transform:scale(0)}55%{transform:scale(1.7) rotate(-8deg)}100%{transform:none}}
+@keyframes ripple{0%{transform:scale(.3);opacity:.8}100%{transform:scale(1.7);opacity:0}}
+@keyframes tabhop{0%{transform:translateY(0)}45%{transform:translateY(-4px)}100%{transform:none}}
+@keyframes twinkle{0%{opacity:.35}50%{opacity:1}100%{opacity:.55}}

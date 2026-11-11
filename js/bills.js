@@ -7,7 +7,7 @@
 // Sync: every bill is encrypted in the browser with a key derived from the trip code and
 // stored under a separate, derived namespace. So devices with the trip code share the bills,
 // the server can't read them, and view-only links never include them.
-import { rpc, isConfigured, getCode } from './sync.js?v=202611120012';
+import { rpc, isConfigured, getCode } from './sync.js?v=202611120019';
 
 const KEY = 'cm-trip-map-bills';
 const SET_KEY = 'cm-trip-map-bills-set';       // { names: [a, b], rate, updatedAt }
@@ -298,11 +298,26 @@ export function onClick(t, ctx) {
     if (amt >= 0.5) {
       // bal > 0 means person 1 owes person 0, so person 1 is the one paying back.
       items = [...items, clean({ kind: 'settle', amount: amt, cur: 'THB', payer: bal > 0 ? 1 : 0, date: today(), updatedAt: Date.now() })];
-      persist(); ctx.toast('Settled up');
+      persist(); ctx.toast('Settled up. All square.');
     }
-    v.settle = false; ctx.rerender(); return true;
+    v.settle = false; ctx.rerender();
+    if (amt >= 0.5) { countDown(document.querySelector('.bills .xtotal b'), Math.round(amt)); ctx.celebrate?.(); }
+    return true;
   }
   return false;
+}
+
+// The balance runs down to zero when you settle up.
+function countDown(el, from) {
+  const txt = el?.lastChild;
+  if (!txt || txt.nodeType !== 3 || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const t0 = performance.now(), dur = 700;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / dur);
+    txt.textContent = num(Math.round(from * (1 - k) ** 2), 0);
+    if (k < 1 && txt.isConnected) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 export function onChange(t, ctx) {
