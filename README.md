@@ -15,6 +15,7 @@ A hand-painted-style map for planning a Chiang Mai trip: pastel watercolor stree
 - **Today:** during the trip the map opens on today's plan: the next stop with one-tap directions, a **Done, next stop** button, and what comes after.
 - **Travel times:** day plans show the walk or drive between stops and a total for the day, with the route drawn along real roads.
 - **Trip essentials** (Menu): where you're staying with the address in Thai and a big **Show to driver** card, flights, booking references and emergency numbers. Works offline; synced encrypted to your own devices.
+- **Shared bills** (Menu): key in a bill once, say who paid and how it is split. It shows who owes who in baht, lets you settle up, and adds each person's part to their own private Spending. Synced encrypted to devices with the trip code.
 - **Quick sort:** imported places without a type get a one-tap-each sorting screen.
 - **One menu:** spending, sync, offline map, sharing and backups live under **Menu**; **Add a place** offers search, paste a Google Maps link, or drop a pin.
 - **Quick actions:** the **⋯** next to each place in the list opens Edit, Mark as visited, Must-go, Plan for a day, Show on map, Google Maps/Waze directions and Delete (with Undo).
@@ -106,6 +107,7 @@ js/data.js            categories, pin glyphs, built-in places
 js/mapstyle.js        the watercolor map colours
 js/routing.js          walking/driving times between stops
 js/essentials.js       trip essentials card
+js/bills.js            shared bills for two people (who paid, who owes who)
 js/sync.js            Supabase sync (merge per pin, newest edit wins)
 js/config.js          Supabase URL + public key (blank = sync off)
 supabase/setup.sql    one-time database setup

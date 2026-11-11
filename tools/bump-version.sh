@@ -7,7 +7,7 @@ V=$(date +%Y%m%d%H%M)
 sed -E -i '' \
   -e "s#(href=\"css/style\.css)(\?v=[0-9]+)?\"#\1?v=$V\"#" \
   -e "s#(src=\"js/app\.js)(\?v=[0-9]+)?\"#\1?v=$V\"#" index.html
-for f in js/app.js js/sync.js js/expenses.js js/essentials.js; do
-  sed -E -i '' -e "s#from '\./(data|mapstyle|sync|config|expenses|essentials|routing)\.js(\?v=[0-9]+)?'#from './\1.js?v=$V'#g" "$f"
+for f in js/app.js js/sync.js js/expenses.js js/essentials.js js/bills.js; do
+  sed -E -i '' -e "s#from '\./(data|mapstyle|sync|config|expenses|essentials|routing|bills)\.js(\?v=[0-9]+)?'#from './\1.js?v=$V'#g" "$f"
 done
 echo "Version stamped: $V"

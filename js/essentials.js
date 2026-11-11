@@ -5,7 +5,7 @@
 // the trip code and stored under a separate, derived namespace. So every device with the trip
 // code gets it, the server can't read it, and view-only links (which read the pin rows of the
 // real trip code) never include it.
-import { rpc, isConfigured, getCode } from './sync.js?v=202611112226';
+import { rpc, isConfigured, getCode } from './sync.js?v=202611112358';
 
 const KEY = 'cm-trip-map-essentials';
 const ROW = '__ess';

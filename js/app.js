@@ -2,13 +2,14 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611112226';
-import { watercolorStyle } from './mapstyle.js?v=202611112226';
-import * as sync from './sync.js?v=202611112226';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611112226';
-import * as spend from './expenses.js?v=202611112226';
-import * as ess from './essentials.js?v=202611112226';
-import { routeFor, legText, totalText } from './routing.js?v=202611112226';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611112358';
+import { watercolorStyle } from './mapstyle.js?v=202611112358';
+import * as sync from './sync.js?v=202611112358';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611112358';
+import * as spend from './expenses.js?v=202611112358';
+import * as ess from './essentials.js?v=202611112358';
+import * as bills from './bills.js?v=202611112358';
+import { routeFor, legText, totalText } from './routing.js?v=202611112358';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -501,6 +502,7 @@ function renderPanel() {
   if (view.kind === 'sort') { renderSort(head, body); return; }
   if (view.kind === 'essentials') { ess.render(head, body, view, essCtx()); return; }
   if (view.kind === 'spend') { spend.render(head, body, view); return; }
+  if (view.kind === 'bills') { bills.render(head, body, view, billsCtx()); return; }
 
   if (view.kind === 'detail') {
     const p = places.find(x => x.id === view.id);
@@ -706,6 +708,7 @@ let popBtn = null, popHandler = null;
 const ico = d => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const ICO = {
   card: ico('<rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="M7 10h5M7 14h8"/>'),
+  split: ico('<circle cx="8" cy="8.500" r="3"/><circle cx="16.500" cy="9.500" r="2.500"/><path d="M2.500 19c.5-3 2.700-4.500 5.500-4.500s5 1.500 5.500 4.500M15 14.600c3.200-.5 5.700.9 6.500 4.400"/>'),
   coin: ico('<circle cx="12" cy="12" r="8"/><path d="M12 7.5v9M14.5 9.5c-.6-.8-1.5-1.1-2.5-1.1-1.5 0-2.5.8-2.5 1.9 0 2.6 5 1.2 5 3.8 0 1.100-1 2-2.500 2-1.100 0-2-.4-2.700-1.200"/>'),
   sync: ico('<path d="M19 8a7.500 7.500 0 0 0-13.500-1.500M5 16a7.500 7.500 0 0 0 13.500 1.500"/><path d="M5.500 3v3.500H9M18.500 21v-3.500H15"/>'),
   down: ico('<path d="M12 4v11M7.500 11l4.500 4.500 4.500-4.500M5 19.500h14"/>'),
@@ -754,6 +757,7 @@ function openMainMenu() {
   const sy = syncLine();
   openPop($('#menuBtn'), `<div class="qhead">Menu</div>
     ${pi('essentials', ICO.card, 'Trip essentials', 'Hotel address, bookings, flights, emergency numbers')}
+    ${pi('bills', ICO.split, 'Shared bills', 'Who paid, and who owes who')}
     ${pi('spend', ICO.coin, 'Spending', 'Your private budget and costs')}
     <div class="qsep"></div>
     ${pi('sync', ICO.sync, 'Sync devices', esc(sy.txt.replace(' · Set up sync', '')))}
@@ -766,6 +770,7 @@ function openMainMenu() {
     const go = kind => { draft = null; setMode('browse'); view = { kind }; renderMap(); renderPanel(); setSheet('full'); };
     if (act === 'essentials') openEssentials();
     else if (act === 'spend') openSpend();
+    else if (act === 'bills') openBills();
     else if (act === 'sync') openSync();
     else if (act === 'offline' || act === 'share') go(act);
     else if (act === 'export') exportPins();
@@ -1892,10 +1897,19 @@ $('#bannerCancel').addEventListener('click', () => setMode('browse'));
 const openSync = () => { draft = null; setMode('browse'); view = { kind: 'sync' }; renderMap(); renderPanel(); setSheet('half'); };
 $('#pfoot').addEventListener('click', openSync);
 // Personal spending log: private to this device, never synced or shared (js/expenses.js).
-const spendCtx = () => ({ view, toast, toastAction, copyText, rerender: renderPanel });
+const spendCtx = () => ({ view, toast, toastAction, copyText, rerender: renderPanel, openBills: () => openBills(), moveSplit });
+// Shared bills for the two travellers (js/bills.js): synced with the trip code, encrypted.
+const billsCtx = () => ({ view, toast, toastAction, rerender: renderPanel, cats: spend.XCATS });
+function openBills() { draft = null; setMode('browse'); view = { kind: 'bills', edit: null }; renderMap(); renderPanel(); setSheet('full'); bills.syncNow(); }
+// Old "split in two" spending entries become shared bills paid by this device's person.
+function moveSplit(list) {
+  if (!bills.profile()) { openBills(); toast('First say who’s using this device, then move them'); return false; }
+  return bills.addMine(list) > 0;
+}
 const openSpend = () => { draft = null; setMode('browse'); view = { kind: 'spend', edit: null }; renderMap(); renderPanel(); setSheet('full'); };
 document.querySelector('.panel').addEventListener('submit', e => {
   if (e.target.matches('[data-xform]')) { e.preventDefault(); if (view.kind === 'spend') spend.onSubmit(e.target, spendCtx()); }
+  if (e.target.matches('[data-bform], [data-bsetup]')) { e.preventDefault(); if (view.kind === 'bills') bills.onSubmit(e.target, billsCtx()); }
   if (e.target.matches('[data-eform]')) { e.preventDefault(); if (view.kind === 'essentials') ess.onSubmit(e.target, essCtx()); }
 });
 $('#zfit').addEventListener('click', fitAll);
@@ -1907,6 +1921,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && mode !== '
 document.querySelector('.panel').addEventListener('click', e => {
   const t = e.target;
   if (view.kind === 'spend' && spend.onClick(t, spendCtx())) return;
+  if (view.kind === 'bills' && bills.onClick(t, billsCtx())) return;
   const f = t.closest('[data-f]');
   if (f) {
     const c = f.dataset.f;
@@ -2008,6 +2023,7 @@ document.querySelector('.panel').addEventListener('click', e => {
 
 document.querySelector('.panel').addEventListener('change', e => {
   if (view.kind === 'spend') { spend.onChange(e.target, spendCtx()); return; }
+  if (view.kind === 'bills') { bills.onChange(e.target, billsCtx()); return; }
   if (e.target.id === 'trip-start') { saveTrip({ start: e.target.value }); if (listMode === 'today') applyListMode('today'); renderMap(); renderPanel(); return; }
   const dpk = e.target.closest?.('[data-dp]');
   if (dpk && view.kind === 'daypick') { const pb = $('#pbody'), top = pb.scrollTop; dpk.checked ? view.picks.add(dpk.dataset.dp) : view.picks.delete(dpk.dataset.dp); renderPanel(); pb.scrollTop = top; return; }
@@ -2033,7 +2049,7 @@ window.addEventListener('storage', e => { if (e.key === STORAGE_KEY) { load(); i
     setInterval(() => { if (document.visibilityState === 'visible') loadViewOnly(); }, 60000);
     return;
   }
-  load(); loadTrip(); spend.load(); ess.load();
+  load(); loadTrip(); spend.load(); ess.load(); bills.load(); spend.setShares(bills.myShares);
   await seedOnFirstVisit();
   { const ti = todayInfo(); if (ti.state === 'on' && stopsOf(ti.day).length) applyListMode('today'); }
   renderMap(); renderPanel();
@@ -2046,6 +2062,11 @@ window.addEventListener('storage', e => { if (e.key === STORAGE_KEY) { load(); i
   });
   renderStatus(sync.getStatus());
   ess.startSync({ onChange: () => { if (view.kind === 'essentials' && !view.edit) renderPanel(); } });
+  // Shared bills: a remote change refreshes whichever money panel is open.
+  bills.startSync({ onChange: local => {
+    if (view.kind === 'bills' && !local) bills.keepForm(renderPanel);
+    else if (view.kind === 'spend') spend.keepForm(renderPanel);
+  } });
   // Private spending sync: its own secret code, never the trip code.
   spend.startSync({
     onChange: () => { if (view.kind === 'spend') spend.keepForm(renderPanel); },

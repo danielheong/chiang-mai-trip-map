@@ -673,7 +673,7 @@ button{cursor:pointer}
 .ecall b{font-family:var(--f-body);font-weight:700;font-size:19px;font-variant-numeric:tabular-nums;color:var(--accent-dk)}
 .ecall span{font-size:13px;font-weight:600;line-height:1.2}
 .ecall small{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
-.xrow{display:grid;grid-template-columns:2fr 3fr;gap:6px;margin-bottom:6px}
+.extras .xrow{display:grid;grid-template-columns:2fr 3fr;gap:6px;margin-bottom:6px}
 .form.ess select,.form.ess input[type=date]{width:100%;border:1.5px solid var(--line);background:var(--paper);border-radius:14px;padding:8px 10px}
 .driver{position:fixed;inset:0;z-index:5000;background:rgba(63,58,49,.55);display:grid;place-items:center;padding:max(16px,env(safe-area-inset-top,0px)) 16px max(16px,env(safe-area-inset-bottom,0px))}
 .dcard{width:min(560px,100%);max-height:100%;overflow:auto;background:#fff;color:#1d1b17;border-radius:24px;padding:24px 22px;display:flex;flex-direction:column;gap:10px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:"Sarabun","Thonburi","Noto Sans Thai",system-ui,sans-serif}
@@ -684,3 +684,35 @@ button{cursor:pointer}
 .den{margin:0;font-size:17px;line-height:1.4;color:#4a4036}
 .dphone{margin:0;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
 .dcard .btn{align-self:center;margin-top:8px}
+
+/* ---------- Shared bills ---------- */
+.bwho{border:1.5px solid var(--line);background:var(--paper);border-radius:999px;padding:3px 12px;font-family:var(--f-hand);font-size:16px;color:var(--ink);cursor:pointer}
+.bwho:hover{border-color:var(--accent-dk)}
+.bills .xtotal .row{margin-top:10px;align-items:center;flex-wrap:wrap}
+.bills .xtotal .btn{padding:6px 16px}
+.bills .xtotal.owe{background:var(--c-cafe)}
+.bills .xtotal.owe span{color:var(--ink)}
+.bsettlerow span{font-family:var(--f-body);font-size:14px;font-weight:700;color:var(--ink);flex:1 1 100%}
+.bseg{border:0;padding:0;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:0}
+.bseg legend{padding:0;margin-bottom:4px}
+.bseg label{position:relative;cursor:pointer;min-width:0}
+.bseg input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.bseg span{display:block;text-align:center;border:1.5px solid var(--line);background:var(--paper);border-radius:14px;padding:9px 8px;font-family:var(--f-hand);font-size:18px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bseg span small{font-family:var(--f-body);font-size:12px;color:var(--muted)}
+.bseg input:checked + span{background:var(--c-nature);border-color:var(--sage-dk);box-shadow:inset 0 0 0 1px var(--sage-dk)}
+.bseg input:focus-visible + span{outline:2px solid var(--accent-dk);outline-offset:2px}
+.bpick{display:grid;gap:10px}
+.bpick .btn{padding:14px 16px;font-size:22px}
+.bsum{border-top:1.5px dashed var(--line);padding-top:12px;display:grid;gap:4px}
+.bsum p{margin:0;font-size:15px;font-variant-numeric:tabular-nums}
+.bsum p b{font-family:var(--f-hand);font-weight:400;font-size:18px;margin-right:6px}
+.bsum small{color:var(--muted);font-size:12.5px}
+.bsettle{cursor:default}
+.bsettle:hover{background:none}
+.bsettle .xdot{background:var(--paper-2)}
+.bills .l small.opt{font-weight:400;text-transform:none;letter-spacing:0}
+.xnodel{visibility:hidden}
+.xadd .xsplit{display:none;margin-left:29px}
+.xadd:has(#x-plan:checked) .xsplit{display:flex}
+.xadd .fine .linkbtn{font-size:15px}
+.bills .xtotal b i{font-family:var(--f-hand);font-style:normal;font-weight:400;font-size:.62em;margin-right:3px;vertical-align:.12em}
