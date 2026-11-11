@@ -2,11 +2,11 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611101156';
-import { watercolorStyle } from './mapstyle.js?v=202611101156';
-import * as sync from './sync.js?v=202611101156';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611101156';
-import * as spend from './expenses.js?v=202611101156';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611112202';
+import { watercolorStyle } from './mapstyle.js?v=202611112202';
+import * as sync from './sync.js?v=202611112202';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611112202';
+import * as spend from './expenses.js?v=202611112202';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -297,6 +297,64 @@ function renderMap() {
   setTimeout(declutterLabels, 0);
 }
 
+
+/* ---------- getting around: transport layer ---------- */
+// Off by default. Hubs (airport, train, bus terminals) show at any zoom, taxi stands from
+// zoom 14, and individual bus stops only as tiny dots from zoom 15, so the map stays calm.
+// Data: data/transit.json, a snapshot of OpenStreetMap.
+let showTransit = false, transit = null;
+const transitLayer = L.layerGroup().addTo(map);
+const TR_GLYPH = {
+  plane: '<path d="M21 3 3 10.5l6.5 2.6L12 20l3-5 4.5 1.5z" fill="currentColor"/>',
+  train: '<rect x="6" y="3.5" width="12" height="13" rx="3" fill="currentColor"/><path d="M8.5 20 10 17M15.5 20 14 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="8.2" y="6" width="7.6" height="4" rx="1" fill="#fff"/><circle cx="9.3" cy="13.3" r="1" fill="#fff"/><circle cx="14.7" cy="13.3" r="1" fill="#fff"/>',
+  bus: '<rect x="4.5" y="4" width="15" height="13" rx="2.5" fill="currentColor"/><rect x="6.5" y="6.5" width="11" height="4.5" rx="1" fill="#fff"/><circle cx="8.2" cy="18" r="1.7" fill="currentColor"/><circle cx="15.8" cy="18" r="1.7" fill="currentColor"/><circle cx="7.8" cy="13.8" r=".9" fill="#fff"/><circle cx="16.2" cy="13.8" r=".9" fill="#fff"/>',
+  songthaew: '<path d="M3.5 16V9.5L6.5 6H11v10z" fill="currentColor"/><rect x="11" y="5" width="9.5" height="11" rx="1.2" fill="currentColor"/><rect x="12.5" y="7.5" width="6.5" height="3.2" fill="#fff"/><circle cx="7.5" cy="17.5" r="1.8" fill="currentColor"/><circle cx="16.5" cy="17.5" r="1.8" fill="currentColor"/>',
+  taxi: '<path d="M5 15.5 6.6 10a2 2 0 0 1 1.9-1.4h7a2 2 0 0 1 1.9 1.4L19 15.5V18H5z" fill="currentColor"/><rect x="10" y="5.5" width="4" height="2.4" rx=".6" fill="currentColor"/><circle cx="8" cy="18.3" r="1.6" fill="currentColor"/><circle cx="16" cy="18.3" r="1.6" fill="currentColor"/>',
+};
+const trGlyph = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${TR_GLYPH[k] || TR_GLYPH.bus}</svg>`;
+const KIND_LABEL = { plane: 'Airport', train: 'Train station', bus: 'Bus terminal', songthaew: 'Songthaew stand', taxi: 'Taxi stand', stop: 'Bus stop' };
+function trOpen(kind, name, lat, lng, blurb) {
+  if (mode !== 'browse') return;
+  openPreview({ name, cat: 'other', icon: kind === 'songthaew' ? 'songthaew' : null, lat, lng, exact: true, source: 'transit', area: KIND_LABEL[kind], blurb }, false);
+}
+function renderTransit() {
+  transitLayer.clearLayers();
+  if (!showTransit || !transit) return;
+  const z = map.getZoom();
+  mapEl.classList.toggle('hide-tr-names', z < 13);
+  for (const h of transit.hubs) {
+    L.marker([h.lat, h.lng], { title: h.name, zIndexOffset: 40, riseOnHover: true,
+      icon: L.divIcon({ className: `tricon hub k-${h.kind}`, iconSize: [26, 26], iconAnchor: [13, 13], html: `<span class="tb">${trGlyph(h.kind)}</span><span class="nm">${esc(h.name)}</span>` }) })
+      .on('click', () => trOpen(h.kind, h.name, h.lat, h.lng, h.blurb)).addTo(transitLayer);
+  }
+  if (z >= 14) for (const [lat, lng, name] of transit.taxis) {
+    L.marker([lat, lng], { title: name, zIndexOffset: 20,
+      icon: L.divIcon({ className: 'tricon k-taxi small', iconSize: [20, 20], iconAnchor: [10, 10], html: `<span class="tb">${trGlyph('taxi')}</span>` }) })
+      .on('click', () => trOpen('taxi', name, lat, lng, 'Metered taxi stand. Grab and Bolt also work across the city.')).addTo(transitLayer);
+  }
+  if (z >= 15) {
+    const b = map.getBounds().pad(0.15);
+    for (const [lat, lng, name] of transit.stops) {
+      if (!b.contains([lat, lng])) continue;
+      L.marker([lat, lng], { title: name || 'Bus stop', zIndexOffset: 10,
+        icon: L.divIcon({ className: 'tricon stop', iconSize: [18, 18], iconAnchor: [9, 9], html: '<i></i>' }) })
+        .on('click', () => trOpen('stop', name || 'Bus stop', lat, lng, 'City bus stop. Buses can be infrequent; red songthaews can be flagged down on most main roads.')).addTo(transitLayer);
+    }
+  }
+  setTimeout(declutterLabels, 0);
+}
+async function toggleTransit() {
+  showTransit = !showTransit;
+  $('#trBtn').setAttribute('aria-pressed', showTransit);
+  if (showTransit && !transit) {
+    try { transit = await fetch('data/transit.json').then(r => { if (!r.ok) throw 0; return r.json(); }); }
+    catch { showTransit = false; $('#trBtn').setAttribute('aria-pressed', 'false'); toast('Couldn’t load the transport spots. Check your connection.'); return; }
+  }
+  renderTransit();
+  if (showTransit) toast(map.getZoom() < 15 ? 'Showing stations and terminals. Zoom in to see bus stops.' : 'Showing transport spots');
+}
+map.on('zoomend moveend', renderTransit);
+
 /* ---------- keeping the map tidy ---------- */
 // Shorter names on the map (the full name is in the place card).
 function shortName(n) {
@@ -333,9 +391,9 @@ const boxHit = (a, b, pad = 2) => a.left < b.right + pad && a.right > b.left - p
 const overlapArea = (a, b) => Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
 const POS = ['r', 'b', 'l', 't'];
 function declutterLabels() {
-  const items = [...mapEl.querySelectorAll('.pinicon, .ideaicon')].map(el => ({
-    el, nm: el.querySelector('.nm'), icon: (el.querySelector('.art:not(.back)') || el.querySelector('.ring'))?.getBoundingClientRect(),
-    pr: el.classList.contains('sel') ? 3 : el.classList.contains('fav') ? 2 : el.classList.contains('ideaicon') ? 0 : 1,
+  const items = [...mapEl.querySelectorAll('.pinicon, .ideaicon, .tricon.hub')].map(el => ({
+    el, nm: el.querySelector('.nm'), icon: (el.querySelector('.art:not(.back)') || el.querySelector('.ring') || el.querySelector('.tb'))?.getBoundingClientRect(),
+    pr: el.classList.contains('sel') ? 3 : el.classList.contains('fav') ? 2 : el.classList.contains('ideaicon') || el.classList.contains('tricon') ? 0 : 1,
   }));
   const box = mapEl.getBoundingClientRect();
   const placed = [];
@@ -356,7 +414,7 @@ function declutterLabels() {
     const cost = r => placed.reduce((s, q) => s + overlapArea(r, q), 0) + others.reduce((s, q) => s + overlapArea(r, q), 0)
       + (r.left < box.left || r.right > box.right || r.top < box.top || r.bottom > box.bottom ? 1 : 0);
     let best = null, bestCost = Infinity;
-    for (const k of POS) {
+    for (const k of it.pr === 0 ? ['r'] : POS) {
       const r = cand[k], c = (placed.some(q => boxHit(r, q)) || others.some(q => boxHit(r, q, 0))) ? cost(r) + 0.5 : cost(r);
       if (c === 0) { best = k; bestCost = 0; break; }
       if (c < bestCost) { best = k; bestCost = c; }
@@ -451,7 +509,7 @@ function renderPanel() {
   if (view.kind === 'preview') {
     const i = view.item;
     const saved = places.find(p => (i.ideaId && p.ideaId === i.ideaId) || p.name.toLowerCase() === i.name.toLowerCase());
-    const src = { list: 'Idea', osm: 'OpenStreetMap', link: 'Google Maps link' }[i.source] || 'Result';
+    const src = { list: 'Idea', osm: 'OpenStreetMap', link: 'Google Maps link', transit: 'Getting around' }[i.source] || 'Result';
     const d = distTxt(i);
     head.innerHTML = `<button type="button" class="back" data-back>‹ My places</button>`;
     body.innerHTML = `<div class="idea">
@@ -461,7 +519,7 @@ function renderPanel() {
       <div class="row">${saved ? `<button type="button" class="btn" data-open="${esc(saved.id)}">Already on your map · open</button>` : `<button type="button" class="btn primary" data-adopt>Add to my map</button>`}
       <a class="btn ghost" href="${i.source === 'list' ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(i.name + ' Chiang Mai')}` : gmapsLink(i)}" target="_blank" rel="noopener">View on Google Maps ↗</a></div>
       <div><span class="l golabel">Get there with</span>${goButtons(i)}</div>
-      <p class="fine">${i.source === 'osm'
+      <p class="fine">${i.source === 'transit' ? 'From OpenStreetMap. Routes and timetables change, so check locally before relying on it.' : i.source === 'osm'
         ? 'Location from OpenStreetMap. Usually spot on, but give it a glance on the map before you rely on it.'
         : 'Built-in spots are approximate. Check opening days before you go.'}</p></div>`;
     return;
@@ -1557,6 +1615,7 @@ document.querySelector('.panel').addEventListener('submit', e => { if (e.target.
 $('#ideasBtn').addEventListener('click', e => { showIdeas = !showIdeas; e.currentTarget.setAttribute('aria-pressed', showIdeas); renderMap(); });
 $('#zfit').addEventListener('click', fitAll);
 $('#locBtn').addEventListener('click', startLocate);
+$('#trBtn').addEventListener('click', toggleTransit);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && mode !== 'browse') setMode('browse'); });
 
 document.querySelector('.panel').addEventListener('click', e => {

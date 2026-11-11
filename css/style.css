@@ -511,3 +511,22 @@ button{cursor:pointer}
 .xplan .fine{margin:0 6px 4px}
 .xplan .xitem{opacity:.8}
 .xplan .xdot{border-style:dashed}
+
+/* ---------- transport layer ---------- */
+.trbtn{right:12px;bottom:192px}
+.trbtn button{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--line);background:var(--card);display:grid;place-items:center;box-shadow:var(--shadow);color:var(--ink)}
+.trbtn button[aria-pressed="true"]{background:#4F6F8F;border-color:#4F6F8F;color:#fff}
+.trbtn svg{width:20px;height:20px}
+.tricon{background:none;border:0}
+.tricon .tb{display:grid;place-items:center;width:26px;height:26px;border-radius:8px;background:#4F6F8F;color:#fff;border:2px solid var(--card);box-shadow:0 1px 3px rgba(74,64,54,.35)}
+.tricon .tb svg{width:16px;height:16px}
+.tricon.k-train .tb{background:#7A5C8F}
+.tricon.k-plane .tb{background:#3F7F8C}
+.tricon.k-songthaew .tb{background:#B5574A}
+.tricon.small .tb{width:20px;height:20px;border-radius:6px;background:#8A8170;border-width:1.5px}
+.tricon.small .tb svg{width:13px;height:13px}
+.tricon .nm{position:absolute;left:30px;top:4px;white-space:nowrap;font-family:var(--f-hand);font-size:14px;line-height:1.2;color:#3E566E;pointer-events:none;
+  text-shadow:0 0 3px var(--paper),0 0 3px var(--paper),0 0 5px var(--paper)}
+.tricon .nm.clash,.hide-tr-names .tricon .nm{visibility:hidden}
+.tricon.stop i{display:block;width:8px;height:8px;margin:5px;border-radius:50%;background:#4F6F8F;border:1.5px solid var(--card);box-shadow:0 0 0 1px rgba(79,111,143,.35)}
+@media (max-width:860px){.trbtn{right:max(10px,env(safe-area-inset-right,0px));top:154px;bottom:auto}}
