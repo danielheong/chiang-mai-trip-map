@@ -832,3 +832,12 @@ html.theming::view-transition-new(root){z-index:2}
 @keyframes ripple{0%{transform:scale(.3);opacity:.8}100%{transform:scale(1.7);opacity:0}}
 @keyframes tabhop{0%{transform:translateY(0)}45%{transform:translateY(-4px)}100%{transform:none}}
 @keyframes twinkle{0%{opacity:.35}50%{opacity:1}100%{opacity:.55}}
+
+/* ---------- phones: no title row ----------
+   The bottom bar says where you are, so the map runs to the top and the search box sits under the status bar. */
+@media (max-width:860px){
+  .top{display:none}
+  .mapwrap .ovl{margin-top:env(safe-area-inset-top,0px)}
+  .mapwrap::after{box-shadow:none}
+  .panel[data-sheet="full"]{--sheet-h:calc(100% - 8px - env(safe-area-inset-top,0px))}
+}
