@@ -56,5 +56,17 @@ A personal Chiang Mai trip-planning map. Static site, **no build step, no npm de
 - Declutter: built-in ideas are off by default; pins closer than ~38px bundle (`clusterPins`, off at zoom ≥17); every pin name stays visible and `declutterLabels()` moves it right → below → left → above to avoid overlaps (only idea names may hide); `shortName()` trims long names on the map; icon size scales with zoom via `--ps`.
 - The map needs requestAnimationFrame, so it stays blank in a hidden/background browser tab; that's not a bug.
 
+## Testing notes (learned the hard way)
+- **Never test against the real Supabase with a trip code.** Test pins once got uploaded to the live project. To test sync, bills or essentials: temporarily point `SUPABASE_URL` in `js/config.js` at a small local mock of `trip_get`/`trip_put` (a Python `http.server` subclass with CORS), use two origins (`127.0.0.1:PORT` and `localhost:PORT`) as two devices, then restore `js/config.js`, clear both origins' localStorage and confirm `git diff js/config.js` is empty before committing.
+- `node` is not installed on this Mac, so the syntax check above can't run; load the page and read the console instead. Python `urllib` fails on SSL here; use `curl`.
+- The in-app preview browser can't register service workers, pauses animations and gives stale screenshots while its pane is hidden. `?debug` exposes `window.__map`. Animations and the iPhone status bar area can only really be judged on the user's phone.
+- Workflow the user expects: describe or mock up first when they ask for ideas, build and test locally, then ask before publishing (`tools/bump-version.sh`, commit, push, wait for GitHub Pages to serve the new `?v=`).
+
+## Open items (as of 12 Nov 2026)
+- Night look: less-used screens (list import, day picker, edit form, offline, share) were not checked for hard-to-read colours.
+- View-only links (`#view=`) were not re-tested after the tab bar and night look; they keep the old layout with no tab bar.
+- iPhone: confirm the search box sits clear of the status bar now that the title row is gone, and that the smudged strip is no longer noticeable.
+- The small animations were verified to trigger but never watched; the user may want them tuned.
+- Shared bills and private Spending each have their own ฿-per-RM rate.
+
 ## Ideas not built yet
-- Real routing/walking times between pins (OSRM or similar).
