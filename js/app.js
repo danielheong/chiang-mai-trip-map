@@ -2,11 +2,13 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611112208';
-import { watercolorStyle } from './mapstyle.js?v=202611112208';
-import * as sync from './sync.js?v=202611112208';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611112208';
-import * as spend from './expenses.js?v=202611112208';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611112226';
+import { watercolorStyle } from './mapstyle.js?v=202611112226';
+import * as sync from './sync.js?v=202611112226';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611112226';
+import * as spend from './expenses.js?v=202611112226';
+import * as ess from './essentials.js?v=202611112226';
+import { routeFor, legText, totalText } from './routing.js?v=202611112226';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -84,7 +86,8 @@ let view = { kind: 'list' };    // list | edit | preview {item}
 let draft = null;
 let filters = new Set(CAT_KEYS);
 let tagFilter = new Set();      // lower-cased tags; empty = show all
-let listMode = 'type';          // type | near | days
+let listMode = 'type';          // today | type | near | days
+let filtersOpen = false;
 let hideVisited = false;
 let dayFocus = null;            // a day number to show only that day's stops (and its route)
 let me = null;                  // { lat, lng, acc } from the phone's location
@@ -136,6 +139,7 @@ function cleanPlace(p) {
     icon: typeof p.icon === 'string' && p.icon ? p.icon.slice(0, 20) : null,
     hours: cleanHours(p.hours),
     price: Number.isInteger(+p.price) && +p.price >= 0 && +p.price <= 4 ? +p.price : 0,
+    sorted: !!p.sorted,   // false = came in as "Other" and hasn't been given a type yet
   };
 }
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -352,10 +356,10 @@ function renderTransit() {
 }
 async function toggleTransit() {
   showTransit = !showTransit;
-  $('#trBtn').setAttribute('aria-pressed', showTransit);
+  syncLayersBtn();
   if (showTransit && !transit) {
     try { transit = await fetch('data/transit.json').then(r => { if (!r.ok) throw 0; return r.json(); }); }
-    catch { showTransit = false; $('#trBtn').setAttribute('aria-pressed', 'false'); toast('Couldn’t load the transport spots. Check your connection.'); return; }
+    catch { showTransit = false; syncLayersBtn(); toast('Couldn’t load the transport spots. Check your connection.'); return; }
   }
   renderTransit();
   if (showTransit) toast(map.getZoom() < 15 ? 'Showing stations and terminals. Zoom in to see bus stops.' : 'Showing transport spots');
@@ -463,29 +467,39 @@ function renderPanel() {
   if (view.kind === 'list') {
     const n = places.length;
     const nv = places.filter(p => p.visited).length;
-    head.innerHTML = `<h2>My places <small>${n ? n + (n === 1 ? ' pin' : ' pins') : ''}${nv ? ` · ${nv} visited` : ''}</small></h2>
-      ${n ? `<div class="modes" role="tablist" aria-label="Arrange list">
-        ${[['type', 'By type'], ['near', 'Near me'], ['days', 'Days']].map(([k, t]) => `<button type="button" role="tab" class="mode" data-listmode="${k}" aria-selected="${listMode === k}">${t}</button>`).join('')}
-        ${nv ? `<button type="button" class="tchip vis" data-hidevisited aria-pressed="${hideVisited}">${hideVisited ? 'Show visited' : 'Hide visited'}</button>` : ''}
-      </div>` : ''}
-
-      <div class="filters" role="group" aria-label="Show categories">${CAT_KEYS.map(c => `<button type="button" class="fchip" data-f="${c}" aria-pressed="${filters.has(c)}">${dotHTML(c)}${CATS[c].short || CATS[c].label}</button>`).join('')}</div>
-      ${allTags().length ? `<div class="filters tagfilters" role="group" aria-label="Filter by tag"><span class="flabel">Tags</span>${allTags().map(t => `<button type="button" class="tchip" data-tf="${esc(t)}" aria-pressed="${tagFilter.has(t.toLowerCase())}">#${esc(t)}</button>`).join('')}${tagFilter.size ? '<button type="button" class="tclear" data-tfclear>Clear</button>' : ''}</div>` : ''}`;
+    const fcount = (filters.size < CAT_KEYS.length ? 1 : 0) + tagFilter.size + (hideVisited ? 1 : 0);
+    const ti = todayInfo();
+    const sub = listMode === 'today' && ti.state === 'on' ? `Day ${ti.day}${dayDate(ti.day).text ? ' · ' + esc(dayDate(ti.day).text) : ''}`
+      : n ? `${n} ${n === 1 ? 'place' : 'places'}${nv ? ` · ${nv} visited` : ''}` : '';
+    head.innerHTML = `<div class="ptitle"><h2>${listMode === 'today' ? 'Today' : 'My places'}</h2>${sub ? `<span class="pcount">${sub}</span>` : ''}</div>
+      ${n ? `<div class="modebar"><div class="modes" role="tablist" aria-label="Views">
+        ${[['today', 'Today'], ['type', 'Places'], ['near', 'Near me'], ['days', 'Days']].map(([k, t]) => `<button type="button" role="tab" class="mode" data-listmode="${k}" aria-selected="${listMode === k}">${t}</button>`).join('')}</div>
+        <button type="button" class="filterbtn" data-filtertoggle aria-expanded="${filtersOpen}" aria-label="Filter places${fcount ? `, ${fcount} active` : ''}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16M7 12h10M10 17.5h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Filter</span>${fcount ? `<b>${fcount}</b>` : ''}</button></div>` : ''}
+      ${n && filtersOpen ? `<div class="fdrawer">
+        <div class="frow"><span class="flabel">Type</span><div class="filters" role="group" aria-label="Show types">${CAT_KEYS.map(c => `<button type="button" class="fchip" data-f="${c}" aria-pressed="${filters.has(c)}">${dotHTML(c)}${CATS[c].short || CATS[c].label}</button>`).join('')}</div></div>
+        ${allTags().length ? `<div class="frow"><span class="flabel">Tags</span><div class="filters" role="group" aria-label="Filter by tag">${allTags().map(t => `<button type="button" class="tchip" data-tf="${esc(t)}" aria-pressed="${tagFilter.has(t.toLowerCase())}">#${esc(t)}</button>`).join('')}</div></div>` : ''}
+        <div class="frow"><span class="flabel">Visited</span><div class="filters"><button type="button" class="tchip" data-hidevisited aria-pressed="${hideVisited}">Hide visited places</button>${fcount ? '<button type="button" class="tclear" data-fclear>Clear all filters</button>' : ''}</div></div>
+      </div>` : ''}`;
     if (!n) {
       body.innerHTML = (showJoinHint() ? joinHintHTML() : '') + `<div class="empty">
         <svg class="art" viewBox="0 0 48 48" aria-hidden="true"><g filter="url(#wc)">${CATS.see.art}</g></svg>
-        <h3>No pins yet</h3>
-        <p>Type a name in the <b>search bar</b> on the map, or paste a Google Maps link.</p>
-        <p>Or tap a dotted <b>idea</b>, or use <b>Add a place</b> and tap the map yourself.</p></div>`;
+        <h3>No places yet</h3>
+        <p>Tap <b>Add a place</b> to search by name, paste a Google Maps link, or drop a pin on the map.</p>
+        <p class="fine">Tip: paste the link of a Google Maps saved list to bring in every place at once.</p>
+        <p><button type="button" class="btn primary" data-addfirst>Add a place</button></p></div>`;
       return;
     }
     body.innerHTML = (showJoinHint() ? joinHintHTML() : '') + listBody();
     return;
   }
 
-  if (view.kind === 'sync') { renderSyncPanel(head, body); body.insertAdjacentHTML('beforeend', offlineHTML() + shareHTML()); return; }
+  if (view.kind === 'sync') { renderSyncPanel(head, body); return; }
+  if (view.kind === 'offline') { head.innerHTML = `<button type="button" class="back" data-back>‹ My places</button><h2 style="margin-top:6px">Offline map</h2>`; body.innerHTML = offlineHTML(); return; }
+  if (view.kind === 'share') { head.innerHTML = `<button type="button" class="back" data-back>‹ My places</button><h2 style="margin-top:6px">Share trip</h2>`; body.innerHTML = shareHTML(); return; }
   if (view.kind === 'import') { renderImportPanel(head, body); return; }
   if (view.kind === 'daypick') { renderDayPick(head, body); return; }
+  if (view.kind === 'sort') { renderSort(head, body); return; }
+  if (view.kind === 'essentials') { ess.render(head, body, view, essCtx()); return; }
   if (view.kind === 'spend') { spend.render(head, body, view); return; }
 
   if (view.kind === 'detail') {
@@ -493,20 +507,22 @@ function renderPanel() {
     if (!p) { view = { kind: 'list' }; renderPanel(); return; }
     const d = distTxt(p);
     head.innerHTML = `<button type="button" class="back" data-back>‹ My places</button>`;
-    body.innerHTML = `<div class="idea">
+    const st = openStatus(p);
+    const where = me ? `${fmtDist(km(me, p))} from you` : d ? `${d} from your stay` : '';
+    body.innerHTML = `<div class="idea card">
       <div class="hero">${dotFor(p)}<div><span class="tag">${CATS[p.cat].label}${p.price ? ' · ' + PRICE[p.price] : ''}${p.fav ? ' · <span class="heart">♥</span> must-go' : ''}</span>
       <h3>${esc(p.name)}</h3></div></div>
-      ${(() => { const st = openStatus(p); return st ? `<p class="openst ${st.open === true ? 'is-open' : st.open === false ? 'is-closed' : ''}"><b></b>${esc(st.text)}${p.hours?.open && p.hours?.close ? ` <small>· ${p.hours.open}–${p.hours.close}</small>` : ''}</p>` : ''; })()}
-      ${p.tags?.length ? `<div class="tgs">${tagChips(p.tags)}</div>` : ''}
-      ${p.note ? `<p class="dnote">${esc(p.note)}</p>` : ''}
-      ${me ? `<p class="fine">${fmtDist(km(me, p))} from you, as the crow flies.</p>` : d ? `<p class="fine">About ${d} from your stay, as the crow flies.</p>` : ''}
-      <div><span class="l golabel">Get there with</span>${goButtons(p)}</div>
+      ${st || where || p.day ? `<p class="metaline">${st ? `<span class="openst ${st.open === true ? 'is-open' : st.open === false ? 'is-closed' : ''}"><b></b>${esc(st.text)}</span>` : ''}${where ? `<span>${where}</span>` : ''}${p.day ? `<span class="dpill" style="--dc:${dayColor(p.day)}">Day ${p.day}</span>` : ''}${p.visited ? '<span class="vt">✓ visited</span>' : ''}</p>` : ''}
+      ${goButtons(p)}
       <div class="planrow">
-        <button type="button" class="btn ${p.visited ? 'done' : 'ghost'}" data-visit="${esc(p.id)}" aria-pressed="${p.visited}">${p.visited ? '✓ Been here' : 'Mark as visited'}</button>
+        <button type="button" class="btn ${p.visited ? 'done' : ''}" data-visit="${esc(p.id)}" aria-pressed="${p.visited}">${p.visited ? '✓ Been here' : 'Mark as visited'}</button>
         <label class="daypick"><span>Plan for</span><select data-setday="${esc(p.id)}" aria-label="Plan for which day">${dayOptions(p.day)}</select></label>
       </div>
-      <div class="row"><button type="button" class="btn" data-edit="${esc(p.id)}">Edit pin</button></div>
-      <p class="fine">${p.exact ? 'Exact spot.' : 'Approximate spot. Edit it and paste coordinates for a precise location.'} ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</p></div>`;
+      ${p.note ? `<div><span class="eyebrow">Notes</span><p class="dnote">${esc(p.note)}</p></div>` : ''}
+      ${p.hours?.open && p.hours?.close ? `<div><span class="eyebrow">Hours</span><p class="plain">${p.hours.open}–${p.hours.close}${p.hours.closed.length ? ` · closed ${p.hours.closed.map(x => DAYNAMES[x]).join(', ')}` : ''}</p></div>` : ''}
+      ${p.tags?.length ? `<div><span class="eyebrow">Tags</span><div class="tgs">${tagChips(p.tags)}</div></div>` : ''}
+      <div class="cardfoot"><button type="button" class="linkbtn" data-edit="${esc(p.id)}">Edit details</button>
+        <span class="fine">${p.exact ? 'Exact spot' : 'Approximate spot'} · ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</span></div></div>`;
     return;
   }
 
@@ -525,7 +541,7 @@ function renderPanel() {
       ${d ? `<p class="fine">About ${d} from your stay, as the crow flies.</p>` : ''}
       <div class="row">${saved ? `<button type="button" class="btn" data-open="${esc(saved.id)}">Already on your map · open</button>` : `<button type="button" class="btn primary" data-adopt>Add to my map</button>`}
       <a class="btn ghost" href="${i.source === 'list' ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(i.name + ' Chiang Mai')}` : gmapsLink(i)}" target="_blank" rel="noopener">View on Google Maps ↗</a></div>
-      <div><span class="l golabel">Get there with</span>${goButtons(i)}</div>
+      ${goButtons(i)}
       <p class="fine">${i.source === 'transit' ? 'From OpenStreetMap. Routes and timetables change, so check locally before relying on it.' : i.source === 'osm'
         ? 'Location from OpenStreetMap. Usually spot on, but give it a glance on the map before you rely on it.'
         : 'Built-in spots are approximate. Check opening days before you go.'}</p></div>`;
@@ -589,7 +605,7 @@ function renderPanel() {
   $('#f-loc').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyLoc(); } });
   f.addEventListener('submit', e => {
     e.preventDefault();
-    draft.name = nm.value.trim();
+    draft.name = nm.value.trim(); draft.sorted = true;
     if (!draft.name) { nm.focus(); toast('Give it a name first.'); return; }
     const pending = $('#f-tag')?.value.trim(); if (pending) addTag(pending);
     const saved = savePlace(draft);
@@ -681,6 +697,128 @@ document.addEventListener('pointerdown', e => { if (!menuEl.hidden && !e.target.
 addEventListener('resize', () => closeMenu());
 $('#pbody').addEventListener('scroll', () => closeMenu(), { passive: true });
 
+
+/* ---------- popovers: Menu, Add a place, Map layers ---------- */
+const popEl = document.createElement('div');
+popEl.className = 'qmenu pop'; popEl.id = 'pop'; popEl.setAttribute('role', 'menu'); popEl.hidden = true;
+document.body.appendChild(popEl);
+let popBtn = null, popHandler = null;
+const ico = d => `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const ICO = {
+  card: ico('<rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="M7 10h5M7 14h8"/>'),
+  coin: ico('<circle cx="12" cy="12" r="8"/><path d="M12 7.5v9M14.5 9.5c-.6-.8-1.5-1.1-2.5-1.1-1.5 0-2.5.8-2.5 1.9 0 2.6 5 1.2 5 3.8 0 1.100-1 2-2.500 2-1.100 0-2-.4-2.700-1.200"/>'),
+  sync: ico('<path d="M19 8a7.500 7.500 0 0 0-13.500-1.500M5 16a7.500 7.500 0 0 0 13.500 1.500"/><path d="M5.500 3v3.500H9M18.500 21v-3.500H15"/>'),
+  down: ico('<path d="M12 4v11M7.500 11l4.500 4.500 4.500-4.500M5 19.500h14"/>'),
+  share: ico('<circle cx="6.500" cy="12" r="2.500"/><circle cx="17" cy="6" r="2.500"/><circle cx="17" cy="18" r="2.500"/><path d="M8.700 10.800 14.800 7.200M8.700 13.200l6.100 3.600"/>'),
+  out: ico('<path d="M12 15V4M8 8l4-4 4 4M5 14v5.500h14V14"/>'),
+  inn: ico('<path d="M12 4v11M8 11l4 4 4-4M5 14v5.500h14V14"/>'),
+  search: ico('<circle cx="10.500" cy="10.500" r="6"/><path d="M15 15l5 5"/>'),
+  link: ico('<path d="M10 14a4 4 0 0 0 5.700 0l3-3a4 4 0 0 0-5.700-5.700l-1 1M14 10a4 4 0 0 0-5.700 0l-3 3a4 4 0 0 0 5.700 5.700l1-1"/>'),
+  pin: ico('<path d="M12 21s-6.500-6.400-6.500-11.200a6.500 6.500 0 0 1 13 0C18.500 14.600 12 21 12 21z"/><circle cx="12" cy="9.800" r="2.200"/>'),
+  bus: ico('<rect x="4.500" y="4" width="15" height="13" rx="2.500"/><path d="M4.500 11h15M7.500 17v2.500M16.500 17v2.500"/>'),
+  idea: ico('<circle cx="12" cy="12" r="7" stroke-dasharray="2.600 2.600"/>'),
+};
+const pi = (act, icon, title, sub = '', attrs = '') => `<button type="button" role="menuitem" class="pi" data-pa="${act}" ${attrs}><span class="pic">${icon}</span><span class="ptx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span></button>`;
+function openPop(btn, html, handler) {
+  if (popBtn === btn) { closePop(); return; }
+  closePop(); closeMenu();
+  popBtn = btn; popHandler = handler; btn.setAttribute('aria-expanded', 'true');
+  popEl.innerHTML = html; popEl.hidden = false; placePop();
+  popEl.querySelector('.pi')?.focus({ preventScroll: true });
+}
+function placePop() {
+  if (!popBtn || popEl.hidden) return;
+  const r = popBtn.getBoundingClientRect(), w = popEl.offsetWidth, h = popEl.offsetHeight;
+  let left = Math.min(innerWidth - w - 8, Math.max(8, r.right - w)), top = r.bottom + 6;
+  if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 6);
+  popEl.style.left = left + 'px'; popEl.style.top = top + 'px';
+}
+function closePop(focusBack = false) {
+  if (popEl.hidden) return;
+  popEl.hidden = true; popBtn?.setAttribute('aria-expanded', 'false');
+  if (focusBack) popBtn?.focus({ preventScroll: true });
+  popBtn = null; popHandler = null;
+}
+popEl.addEventListener('click', e => { const b = e.target.closest('[data-pa]'); if (!b || !popHandler) return; if (!popHandler(b.dataset.pa, b)) closePop(); });
+popEl.addEventListener('keydown', e => {
+  const items = [...popEl.querySelectorAll('.pi')], i = items.indexOf(document.activeElement);
+  if (e.key === 'Escape') { e.preventDefault(); closePop(true); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+  else if (e.key === 'Tab') closePop();
+});
+document.addEventListener('pointerdown', e => { if (!popEl.hidden && !e.target.closest('#pop, #menuBtn, #addBtn, #layersBtn, [data-addfirst]')) closePop(); });
+addEventListener('resize', () => closePop());
+
+function openMainMenu() {
+  const sy = syncLine();
+  openPop($('#menuBtn'), `<div class="qhead">Menu</div>
+    ${pi('essentials', ICO.card, 'Trip essentials', 'Hotel address, bookings, flights, emergency numbers')}
+    ${pi('spend', ICO.coin, 'Spending', 'Your private budget and costs')}
+    <div class="qsep"></div>
+    ${pi('sync', ICO.sync, 'Sync devices', esc(sy.txt.replace(' · Set up sync', '')))}
+    ${pi('offline', ICO.down, 'Offline map', 'Save Chiang Mai onto this device')}
+    ${pi('share', ICO.share, 'Share trip', 'Plan together or send a view-only link')}
+    <div class="qsep"></div>
+    ${pi('export', ICO.out, 'Back up places', 'Save a file of all your places')}
+    ${pi('import', ICO.inn, 'Restore from a file')}`,
+  act => {
+    const go = kind => { draft = null; setMode('browse'); view = { kind }; renderMap(); renderPanel(); setSheet('full'); };
+    if (act === 'essentials') openEssentials();
+    else if (act === 'spend') openSpend();
+    else if (act === 'sync') openSync();
+    else if (act === 'offline' || act === 'share') go(act);
+    else if (act === 'export') exportPins();
+    else if (act === 'import') $('#importFile').click();
+  });
+}
+function openAddMenu() {
+  openPop($('#addBtn'), `<div class="qhead">Add a place</div>
+    ${pi('search', ICO.search, 'Search by name', 'Hotels, cafés, temples, markets')}
+    ${pi('paste', ICO.link, 'Paste a Google Maps link', 'In Google Maps: Share → Copy link. Works for a whole saved list too')}
+    ${pi('tap', ICO.pin, 'Drop a pin on the map', 'Tap the exact spot yourself')}`,
+  act => {
+    if (act === 'tap') startAdding();
+    else if (act === 'search') focusSearch();
+    else pasteIntoSearch();
+  });
+}
+const layersHTML = () => `<div class="qhead">Show on the map</div>
+  ${pi('transit', ICO.bus, 'Transport spots', 'Airport, stations, terminals, bus stops', `role="menuitemcheckbox" aria-checked="${showTransit}"`)}
+  ${pi('ideas', ICO.idea, 'Ideas', 'Classic Chiang Mai spots to consider', `role="menuitemcheckbox" aria-checked="${showIdeas}"`)}`;
+function syncLayersBtn() { $('#layersBtn').setAttribute('aria-pressed', showTransit || showIdeas); }
+function openLayersMenu() {
+  openPop($('#layersBtn'), layersHTML(), act => {
+    const refresh = () => { syncLayersBtn(); if (!popEl.hidden) { popEl.innerHTML = layersHTML(); popEl.querySelector(`[data-pa="${act}"]`)?.focus({ preventScroll: true }); } };
+    if (act === 'transit') toggleTransit().then(refresh);
+    else { showIdeas = !showIdeas; renderMap(); refresh(); }
+    return true;   // stay open so both can be switched
+  });
+}
+function focusSearch() { setSheet('peek'); qEl.focus(); showTips(true); }
+async function pasteIntoSearch() {
+  focusSearch();
+  let txt = '';
+  try { txt = await navigator.clipboard.readText(); } catch {}
+  if (txt.trim()) { qEl.value = txt.trim().slice(0, 600); qEl.dispatchEvent(new Event('input')); }
+  else toast('Paste your link into the search bar');
+}
+// Tips shown in the search box when it is empty.
+const TIPS_OFF = 'cm-trip-map-tips-off';
+function showTips(force = false) {
+  if (qEl.value.trim()) return;
+  let off = false; try { off = localStorage.getItem(TIPS_OFF) === '1'; } catch {}
+  if (off && !force) { closeSearch(); return; }
+  opts = [];
+  const row = (icon, title, sub) => `<div class="tip"><span class="pic">${icon}</span><span class="ptx"><b>${title}</b><small>${sub}</small></span></div>`;
+  show(`<h4>Ways to find a place</h4>
+    ${row(ICO.search, 'Type a name', 'Your own places come first, then the map')}
+    ${row(ICO.link, 'Paste a Google Maps link', 'Share → Copy link in Google Maps. Finds places the search misses')}
+    ${row(ICO.card, 'Paste a saved-list link', 'Brings in every place from a Google Maps list')}
+    ${allTags().length ? row(ico('<path d="M9 4 7 20M17 4l-2 16M4 9h16M3.500 15h16"/>'), 'Type #tag', 'Shows only the places with that tag') : ''}
+    <div class="tiprow"><button type="button" class="btn" data-tippaste>Paste from clipboard</button>${off ? '' : '<button type="button" class="tclear" data-tipsoff>Don’t show tips</button>'}</div>`, -1);
+}
+
 /* ---------- day plans ---------- */
 const DAY_COLORS = ['#D9776A', '#5F9AA8', '#D9A53A', '#6F9A55', '#A77DB8', '#D9739A', '#5E7FC4', '#A8805F'];
 const dayColor = d => DAY_COLORS[(d - 1) % DAY_COLORS.length];
@@ -712,7 +850,8 @@ function daysBody(shown) {
         <span class="dcount">${items.length ? `${items.length} ${items.length === 1 ? 'stop' : 'stops'}` : 'empty'}</span>
       </div>
       ${ro ? (title ? `<div class="dtitle ro">${esc(title)}</div>` : '') : `<button type="button" class="dtitle${title ? '' : ' empty'}" data-daytitle="${d}">${title ? esc(title) : 'Name this day…'}</button>`}
-      ${items.map((p, i) => itemHTML(p, `<span class="stopn">${i + 1}</span>`, ro ? '' : `<span class="mv"><button type="button" data-move="${esc(p.id)}" data-dir="-1" aria-label="Move ${esc(p.name)} earlier" ${i ? '' : 'disabled'}>↑</button><button type="button" data-move="${esc(p.id)}" data-dir="1" aria-label="Move ${esc(p.name)} later" ${i < items.length - 1 ? '' : 'disabled'}>↓</button></span>`)).join('')}
+      ${stopsHTML(d, items, (p, i) => itemHTML(p, `<span class="stopn">${i + 1}</span>`, ro ? '' : `<span class="mv"><button type="button" data-move="${esc(p.id)}" data-dir="-1" aria-label="Move ${esc(p.name)} earlier" ${i ? '' : 'disabled'}>↑</button><button type="button" data-move="${esc(p.id)}" data-dir="1" aria-label="Move ${esc(p.name)} later" ${i < items.length - 1 ? '' : 'disabled'}>↓</button></span>`))}
+      ${items.length > 1 && dayTotal(d) ? `<p class="daytotal">${items.length} stops · ${dayTotal(d)}</p>` : ''}
       ${items.length ? '' : `<p class="lnote">${ro ? 'Nothing planned yet.' : 'Nothing planned yet. Add places to this day.'}</p>`}
       ${ro ? '' : `<div class="dayact" id="dayact-${d}">
         <button type="button" class="tchip" data-dayadd="${d}">+ Add places</button>
@@ -781,7 +920,7 @@ function saveDayPick() {
   }
   if (d > trip.days) saveTrip({ days: d });
   persist();
-  view = { kind: 'list' }; listMode = 'days'; renderMap(); renderPanel();
+  view = { kind: 'list' }; if (listMode !== 'today') listMode = 'days'; renderMap(); renderPanel();
   toast(`Day ${d}: ${picks.size} ${picks.size === 1 ? 'place' : 'places'}`);
 }
 function editDayTitle(btn) {
@@ -794,6 +933,128 @@ function editDayTitle(btn) {
   inp.addEventListener('change', store);
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); done(true); } if (e.key === 'Escape') { e.preventDefault(); done(false); } });
   inp.addEventListener('blur', () => done(true));
+}
+
+
+
+/* ---------- quick sort: give imported "Other" places a type (and a day) ---------- */
+const unsorted = () => places.filter(p => p.cat === 'other' && !p.sorted && !p.icon);
+function sortCardHTML() {
+  const n = unsorted().length;
+  if (!n || viewOnly) return '';
+  return `<div class="tnote sortnote"><b>${n} ${n === 1 ? 'place needs' : 'places need'} a type</b>
+    <p>They came in without one, so they show as a flower. It takes a tap each.</p>
+    <div class="row"><button type="button" class="btn primary" data-sortstart>Sort ${n === 1 ? 'it' : 'them'} now</button></div></div>`;
+}
+function startSort() {
+  const ids = unsorted().map(p => p.id); if (!ids.length) return;
+  draft = null; setMode('browse'); view = { kind: 'sort', ids, i: 0, day: null, total: ids.length };
+  renderPanel(); setSheet('half'); sortFly();
+}
+const sortCur = () => places.find(p => p.id === view.ids[view.i]);
+function sortFly() { const p = sortCur(); if (p) flyVis([p.lat, p.lng], Math.max(map.getZoom(), 16), { duration: .6 }); renderMap(); }
+function renderSort(head, body) {
+  const p = sortCur();
+  if (!p) { view = { kind: 'list' }; renderMap(); renderPanel(); return; }
+  const n = tripDays();
+  head.innerHTML = `<button type="button" class="back" data-back>‹ My places</button>
+    <div class="ptitle" style="margin-top:6px"><h2>Sort places</h2><span class="pcount">${view.total - view.ids.length + view.i + 1} of ${view.total}</span></div>`;
+  body.innerHTML = `<div class="idea card">
+    <div class="hero">${dotFor(p)}<div><span class="tag">Needs a type</span><h3>${esc(p.name)}</h3></div></div>
+    ${p.note ? `<p class="dnote">${esc(p.note)}</p>` : ''}
+    <div><span class="eyebrow">What is it? Tap one</span>
+      <div class="cats sortcats">${CAT_KEYS.filter(c => c !== 'other').map(c => `<button type="button" data-sorttype="${c}">${dotHTML(c)}${CATS[c].short || CATS[c].label}</button>`).join('')}</div></div>
+    ${n ? `<div><span class="eyebrow">Plan it for a day (optional)</span>
+      <div class="daychips"><button type="button" class="dchipbtn" data-sortday="" aria-pressed="${!view.day}">No day</button>${Array.from({ length: n }, (_, k) => k + 1).map(d => `<button type="button" class="dchipbtn" data-sortday="${d}" aria-pressed="${view.day === d}" style="--dc:${dayColor(d)}"><i></i>Day ${d}</button>`).join('')}</div></div>` : ''}
+    <div class="cardfoot"><button type="button" class="linkbtn" data-sorttype="other">Leave as “Other”</button><button type="button" class="linkbtn" data-sortskip>Skip for now</button></div>
+    <p class="fine"><a href="${gmapsLink(p)}" target="_blank" rel="noopener">Look it up on Google Maps ↗</a></p></div>`;
+}
+function sortAdvance(done) {
+  if (done) { view.ids.splice(view.i, 1); } else view.i++;
+  if (view.i >= view.ids.length) {
+    const left = unsorted().length;
+    view = { kind: 'list' }; listMode = 'type'; dayFocus = null; renderMap(); renderPanel(); setSheet('half');
+    toast(left ? `${left} still to sort. You can finish later.` : 'All sorted');
+    return;
+  }
+  view.day = null; renderPanel(); sortFly();
+}
+const essCtx = () => ({ view, toast, copyText, rerender: renderPanel, stay: stayOf(), goButtons });
+function openEssentials() { draft = null; setMode('browse'); view = { kind: 'essentials', edit: false }; renderMap(); renderPanel(); setSheet('full'); ess.syncNow(); }
+
+/* ---------- today ---------- */
+// Where "today" falls in the trip, in Chiang Mai time.
+function todayInfo() {
+  const n = tripDays();
+  if (!trip.start) return { state: 'nostart', n };
+  const diff = Math.round((Date.parse(bkToday() + 'T00:00:00Z') - Date.parse(trip.start + 'T00:00:00Z')) / 864e5);
+  if (diff < 0) return { state: 'before', inDays: -diff, n };
+  if (diff >= Math.max(n, 1)) return { state: 'after', n };
+  return { state: 'on', day: diff + 1, n };
+}
+function nextCardHTML(p, idx, total) {
+  const st = openStatus(p);
+  return `<div class="nextcard">
+    <span class="eyebrow">Next stop · ${idx + 1} of ${total}</span>
+    <button type="button" class="nexthead" data-open="${esc(p.id)}">${dotFor(p)}<span><b>${esc(p.name)}</b>
+      <small>${[st ? st.text : '', me ? `${fmtDist(km(me, p))} from you` : '', p.price ? PRICE[p.price] : ''].filter(Boolean).map(esc).join(' · ') || CATS[p.cat].label}</small></span></button>
+    ${p.note ? `<p class="nextnote">${esc(p.note)}</p>` : ''}
+    ${goButtons(p)}
+    ${viewOnly ? '' : `<button type="button" class="btn donebtn" data-visit="${esc(p.id)}">✓ Done, next stop</button>`}</div>`;
+}
+function dayPreviewHTML(d, label) {
+  const items = stopsOf(d);
+  return `<div class="group day" style="--dc:${dayColor(d)}"><div class="dayhead"><span class="dnum">${label}</span><span class="dcount">${items.length ? `${items.length} ${items.length === 1 ? 'stop' : 'stops'}` : 'empty'}</span></div>
+    ${dayTitle(d) ? `<div class="dtitle ro">${esc(dayTitle(d))}</div>` : ''}
+    ${items.length ? stopsHTML(d, items, (p, i) => itemHTML(p, `<span class="stopn">${i + 1}</span>`)) : `<p class="lnote">Nothing planned yet.</p>`}</div>`;
+}
+function todayBody() {
+  const ti = todayInfo(), ro = viewOnly;
+  const toDays = `<button type="button" class="btn" data-listmode="days">Open day plans</button>`;
+  if (ti.state === 'nostart') {
+    return `<div class="tnote"><b>When does your trip start?</b>
+      <p>Set the first day and this tab will show each day’s stops in order, with directions to the next one.</p>
+      ${ro ? '' : `<label class="tstart"><span>Trip starts</span><input type="date" id="trip-start" value=""></label>`}</div>
+      ${ti.n ? dayPreviewHTML(1, 'Day 1') : `<div class="empty"><p>No day plans yet.</p><p>${toDays}</p></div>`}`;
+  }
+  if (ti.state === 'before') {
+    return `<div class="tnote"><b>${ti.inDays === 1 ? 'Your trip starts tomorrow' : `Your trip starts in ${ti.inDays} days`}</b>
+      <p>${esc(dayDate(1).text)}. Here is your first day.</p></div>${ti.n ? dayPreviewHTML(1, 'Day 1') : `<div class="empty"><p>No day plans yet.</p><p>${toDays}</p></div>`}`;
+  }
+  if (ti.state === 'after') {
+    const nv = places.filter(p => p.visited).length;
+    return `<div class="tnote"><b>The trip has ended</b><p>You visited ${nv} of ${places.length} places.</p><p>${toDays}</p></div>`;
+  }
+  const d = ti.day, all = stopsOf(d), todo = all.filter(p => !p.visited), done = all.filter(p => p.visited);
+  if (!all.length) {
+    return `<div class="tnote"><b>Nothing planned for today</b>
+      <p>${dayTitle(d) ? esc(dayTitle(d)) + '. ' : ''}Pick a few places for Day ${d}, or see what is close to you.</p>
+      <div class="row">${ro ? '' : `<button type="button" class="btn primary" data-dayadd="${d}">+ Add places to today</button>`}<button type="button" class="btn" data-listmode="near">Near me</button></div></div>`;
+  }
+  let out = dayTitle(d) ? `<p class="todaytitle">${esc(dayTitle(d))}</p>` : '';
+  if (!todo.length) {
+    out += `<div class="tnote good"><b>All ${all.length} stops done</b><p>That is everything planned for today.</p>
+      ${d < ti.n && stopsOf(d + 1).length ? `<p class="fine">Tomorrow starts at ${esc(stopsOf(d + 1)[0].name)}.</p>` : ''}</div>`;
+  } else {
+    out += nextCardHTML(todo[0], all.indexOf(todo[0]), all.length);
+    if (todo.length > 1) {
+      const rest = todo.slice(1), r = routeFor(all, onRouteReady);
+      const legBefore = p => { const i = all.indexOf(p); return r && i > 0 ? legText(r.legs[i - 1]) : ''; };
+      out += `<div class="group"><h3>After that <span>${rest.length}</span></h3>` +
+        rest.map(p => (legBefore(p) ? `<div class="leg"><i></i>${legBefore(p)}</div>` : '') + itemHTML(p, `<span class="stopn" style="background:${dayColor(d)}">${all.indexOf(p) + 1}</span>`)).join('') + `</div>`;
+    }
+    if (dayTotal(d)) out += `<p class="daytotal">${all.length} stops today · ${dayTotal(d)}</p>`;
+  }
+  if (done.length) out += `<div class="group"><h3>Done today <span>${done.length}</span></h3>` + done.map(p => itemHTML(p, '')).join('') + `</div>`;
+  if (!ro) out += `<div class="dayact"><button type="button" class="tchip" data-dayadd="${d}">+ Add or change today’s places</button></div>`;
+  return out;
+}
+// Today shows only today's stops and route on the map; other tabs show everything.
+function applyListMode(m) {
+  listMode = m;
+  const ti = todayInfo();
+  dayFocus = m === 'today' && ti.state === 'on' ? ti.day : m === 'days' ? dayFocus : null;
+  if (m === 'near' && !me) startLocate();
 }
 
 /* ---------- list modes, visited, days, location ---------- */
@@ -816,8 +1077,9 @@ function listBody() {
     return `<p class="lnote">Closest first, from where you are now (straight line).</p>` + rows.map(([d, p]) => itemHTML(p, fmtDist(d))).join('');
   }
   if (listMode === 'days') return daysBody(shown);
+  if (listMode === 'today') return todayBody(shown);
   const s = stayOf();
-  let out = s ? '' : `<p class="lnote">Pin your stay and each place will show how far it is from your bed.</p>`;
+  let out = sortCardHTML() + (s ? '' : `<p class="lnote">Pin your stay and each place will show how far it is from your bed.</p>`);
   for (const c of CAT_KEYS) {
     if (!filters.has(c)) continue;
     const items = shown.filter(p => p.cat === c).sort((a, b) => byVisit(a, b) || (b.fav - a.fav) || a.name.localeCompare(b.name));
@@ -851,9 +1113,21 @@ function renderRoute() {
   for (const d of days) {
     const stops = stopsOf(d).filter(visible);
     if (stops.length < 2) continue;
-    L.polyline(stops.map(p => [p.lat, p.lng]), { color: dayColor(d), weight: dayFocus ? 4 : 3, opacity: dayFocus ? .9 : .7, dashArray: '2 9', lineCap: 'round', interactive: false }).addTo(routeLayer);
+    const r = stops.length === stopsOf(d).length ? routeFor(stops, onRouteReady) : null;
+    L.polyline(r ? r.line : stops.map(p => [p.lat, p.lng]), { color: dayColor(d), weight: dayFocus ? 4 : 3, opacity: dayFocus ? .9 : .7, dashArray: r ? '1 7' : '2 9', lineCap: 'round', interactive: false }).addTo(routeLayer);
   }
 }
+let routeTimer = null;
+function onRouteReady() {
+  clearTimeout(routeTimer);
+  routeTimer = setTimeout(() => { renderRoute(); if (view.kind === 'list' && (listMode === 'days' || listMode === 'today')) { const pb = $('#pbody'), top = pb.scrollTop; renderPanel(); pb.scrollTop = top; } }, 50);
+}
+// Stops of a day as rows with the travel time between each pair.
+function stopsHTML(d, items, rowFor) {
+  const all = stopsOf(d), r = items.length > 1 && items.length === all.length ? routeFor(all, onRouteReady) : null;
+  return items.map((p, i) => rowFor(p, i) + (i < items.length - 1 ? `<div class="leg"><i></i>${r ? legText(r.legs[i]) : `${fmtDist(km(p, items[i + 1]))} apart`}</div>` : '')).join('');
+}
+const dayTotal = d => { const all = stopsOf(d), r = all.length > 1 ? routeFor(all, onRouteReady) : null; return r ? totalText(r.legs) : ''; };
 // "You are here": only starts after you tap the locate button (the browser asks first).
 let meWatch = null, meMarker = null, meCircle = null, meFirst = false;
 function startLocate() {
@@ -912,7 +1186,7 @@ async function saveOffline() {
     }
     for (const f of ['Noto Sans Italic', 'Noto Sans Regular']) urls.add(`https://tiles.openfreemap.org/fonts/${encodeURIComponent(f)}/0-255.pbf`);
     const list = [...urls];
-    offlineJob = { done: 0, total: list.length, failed: 0 }; renderPanel();
+    offlineJob = { done: 0, total: list.length, failed: 0 }; if (view.kind === 'offline') renderPanel();
     let i = 0;
     const worker = async () => { while (i < list.length) { const u = list[i++]; try { const r = await fetch(u); if (!r.ok) offlineJob.failed++; } catch { offlineJob.failed++; } offlineJob.done++; if (offlineJob.done % 10 === 0 && view.kind === 'sync') renderPanel(); } };
     await Promise.all(Array.from({ length: 6 }, worker));
@@ -923,7 +1197,7 @@ async function saveOffline() {
   } catch {
     offlineJob = null; toast('Couldn’t save the map. Check your connection and try again.');
   }
-  if (view.kind === 'sync') renderPanel();
+  if (view.kind === 'offline') renderPanel();
 }
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -1441,7 +1715,7 @@ function optHTML(i, dot, title, sub) {
 }
 function renderSearch() {
   const q = qEl.value; qClear.hidden = !q;
-  if (!q.trim()) { closeSearch(); return; }
+  if (!q.trim()) { if (document.activeElement === qEl) showTips(); else closeSearch(); return; }
   opts = []; let html = '';
   const direct = parseLoc(q);
   if (direct || isShortLink(q) || looksLikeLink(q)) {
@@ -1563,7 +1837,7 @@ function choose(i) {
   openPreview(o.item, true);
 }
 qEl.addEventListener('input', () => { active = qEl.value.trim() ? 0 : -1; if (!looksLikeLink(qEl.value)) scheduleOSM(qEl.value); renderSearch(); });
-qEl.addEventListener('focus', () => { setSheet('peek'); if (qEl.value.trim()) renderSearch(); });
+qEl.addEventListener('focus', () => { setSheet('peek'); if (qEl.value.trim()) renderSearch(); else showTips(); });
 qEl.addEventListener('keydown', e => {
   if (e.key === 'ArrowDown') { e.preventDefault(); if (sres.hidden) renderSearch(); active = Math.min(active + 1, opts.length - 1); markActive(); }
   else if (e.key === 'ArrowUp') { e.preventDefault(); active = Math.max(active - 1, 0); markActive(); }
@@ -1571,14 +1845,18 @@ qEl.addEventListener('keydown', e => {
   else if (e.key === 'Escape') closeSearch();
 });
 sres.addEventListener('pointerdown', e => e.preventDefault());
-sres.addEventListener('click', e => { const b = e.target.closest('.sopt'); if (b) choose(+b.dataset.i); });
+sres.addEventListener('click', e => {
+  if (e.target.closest('[data-tippaste]')) { pasteIntoSearch(); return; }
+  if (e.target.closest('[data-tipsoff]')) { try { localStorage.setItem(TIPS_OFF, '1'); } catch {} closeSearch(); return; }
+  const b = e.target.closest('.sopt'); if (b) choose(+b.dataset.i);
+});
 qClear.addEventListener('click', () => { qEl.value = ''; closeSearch(); qClear.hidden = true; qEl.focus(); });
 document.addEventListener('pointerdown', e => { if (!e.target.closest('#search')) closeSearch(); });
 // Keep map gestures from firing under the overlay controls.
 for (const el of document.querySelectorAll('.ovl')) { L.DomEvent.disableClickPropagation(el); L.DomEvent.disableScrollPropagation(el); }
 
 /* ---------- export / import ---------- */
-$('#exportBtn').addEventListener('click', () => {
+function exportPins() {
   const data = { app: 'chiang-mai-trip-map', version: 3, trip, exportedAt: new Date().toISOString(), places };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -1586,8 +1864,8 @@ $('#exportBtn').addEventListener('click', () => {
   a.download = `chiang-mai-pins-${new Date().toISOString().slice(0, 10)}.json`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  toast(`Exported ${places.length} ${places.length === 1 ? 'pin' : 'pins'}`);
-});
+  toast(`Exported ${places.length} ${places.length === 1 ? 'place' : 'places'}`);
+}
 $('#importFile').addEventListener('change', async e => {
   const file = e.target.files?.[0]; e.target.value = '';
   if (!file) return;
@@ -1605,24 +1883,25 @@ $('#importFile').addEventListener('change', async e => {
 });
 
 /* ---------- other events ---------- */
-$('#addBtn').addEventListener('click', () => {
-  if (mode === 'adding') { setMode('browse'); return; }
+function startAdding() {
   draft = null; view = { kind: 'list' }; renderMap(); renderPanel();
-  setMode('adding');
-  setSheet('peek');
-});
+  setMode('adding'); setSheet('peek');
+}
+$('#addBtn').addEventListener('click', () => { if (mode === 'adding') { setMode('browse'); return; } openAddMenu(); });
 $('#bannerCancel').addEventListener('click', () => setMode('browse'));
 const openSync = () => { draft = null; setMode('browse'); view = { kind: 'sync' }; renderMap(); renderPanel(); setSheet('half'); };
-$('#syncBtn').addEventListener('click', openSync);
 $('#pfoot').addEventListener('click', openSync);
 // Personal spending log: private to this device, never synced or shared (js/expenses.js).
 const spendCtx = () => ({ view, toast, toastAction, copyText, rerender: renderPanel });
-$('#spendBtn').addEventListener('click', () => { draft = null; setMode('browse'); view = { kind: 'spend', edit: null }; renderMap(); renderPanel(); setSheet('full'); });
-document.querySelector('.panel').addEventListener('submit', e => { if (e.target.matches('[data-xform]')) { e.preventDefault(); if (view.kind === 'spend') spend.onSubmit(e.target, spendCtx()); } });
-$('#ideasBtn').addEventListener('click', e => { showIdeas = !showIdeas; e.currentTarget.setAttribute('aria-pressed', showIdeas); renderMap(); });
+const openSpend = () => { draft = null; setMode('browse'); view = { kind: 'spend', edit: null }; renderMap(); renderPanel(); setSheet('full'); };
+document.querySelector('.panel').addEventListener('submit', e => {
+  if (e.target.matches('[data-xform]')) { e.preventDefault(); if (view.kind === 'spend') spend.onSubmit(e.target, spendCtx()); }
+  if (e.target.matches('[data-eform]')) { e.preventDefault(); if (view.kind === 'essentials') ess.onSubmit(e.target, essCtx()); }
+});
 $('#zfit').addEventListener('click', fitAll);
 $('#locBtn').addEventListener('click', startLocate);
-$('#trBtn').addEventListener('click', toggleTransit);
+$('#layersBtn').addEventListener('click', openLayersMenu);
+$('#menuBtn').addEventListener('click', openMainMenu);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && mode !== 'browse') setMode('browse'); });
 
 document.querySelector('.panel').addEventListener('click', e => {
@@ -1637,7 +1916,21 @@ document.querySelector('.panel').addEventListener('click', e => {
     renderMap(); renderPanel(); return;
   }
   const lm = t.closest('[data-listmode]');
-  if (lm) { listMode = lm.dataset.listmode; if (listMode === 'near' && !me) startLocate(); if (listMode !== 'days') dayFocus = null; renderMap(); renderPanel(); return; }
+  if (lm) { applyListMode(lm.dataset.listmode); renderMap(); renderPanel(); $('#pbody').scrollTop = 0; return; }
+  if (view.kind === 'essentials' && ess.onClick(t, essCtx())) return;
+  if (t.closest('[data-sortstart]')) { startSort(); return; }
+  const sd0 = t.closest('[data-sortday]');
+  if (sd0 && view.kind === 'sort') { view.day = sd0.dataset.sortday ? +sd0.dataset.sortday : null; renderPanel(); return; }
+  const stp = t.closest('[data-sorttype]');
+  if (stp && view.kind === 'sort') {
+    const p = sortCur(), c = stp.dataset.sorttype, d = view.day;
+    if (p) { updatePlace(p.id, { cat: c, sorted: true, ...(d ? { day: d, order: nextOrder(d, p.id) } : {}) }); toast(`${shortName(p.name)} → ${CATS[c].short || CATS[c].label}${d ? ` · Day ${d}` : ''}`); }
+    sortAdvance(true); return;
+  }
+  if (t.closest('[data-sortskip]') && view.kind === 'sort') { sortAdvance(false); return; }
+  if (t.closest('[data-filtertoggle]')) { filtersOpen = !filtersOpen; renderPanel(); return; }
+  if (t.closest('[data-fclear]')) { filters = new Set(CAT_KEYS); tagFilter.clear(); hideVisited = false; renderMap(); renderPanel(); return; }
+  if (t.closest('[data-addfirst]')) { openAddMenu(); return; }
   if (t.closest('[data-addday]')) { addDay(); return; }
   const dadd = t.closest('[data-dayadd]'); if (dadd) { openDayPick(+dadd.dataset.dayadd); return; }
   const dt = t.closest('[data-daytitle]'); if (dt) { editDayTitle(dt); return; }
@@ -1645,7 +1938,7 @@ document.querySelector('.panel').addEventListener('click', e => {
   if (dd) { const d = +dd.dataset.delday, box = $('#dayact-' + d); box.innerHTML = `<span class="fine">Remove Day ${d}? Its places go back to “Not planned”.</span><button type="button" class="btn danger" data-deldayyes="${d}">Remove</button><button type="button" class="btn ghost" data-deldayno>Keep</button>`; return; }
   const ddy = t.closest('[data-deldayyes]'); if (ddy) { removeDay(+ddy.dataset.deldayyes); return; }
   if (t.closest('[data-deldayno]')) { renderPanel(); return; }
-  if (t.closest('[data-back-days]')) { view = { kind: 'list' }; listMode = 'days'; renderMap(); renderPanel(); return; }
+  if (t.closest('[data-back-days]')) { view = { kind: 'list' }; if (listMode !== 'today') listMode = 'days'; renderMap(); renderPanel(); return; }
   if (t.closest('[data-dpsave]')) { saveDayPick(); return; }
   if (t.closest('[data-hidevisited]')) { hideVisited = !hideVisited; renderMap(); renderPanel(); return; }
   if (t.closest('[data-locate]')) { startLocate(); return; }
@@ -1700,7 +1993,7 @@ document.querySelector('.panel').addEventListener('click', e => {
   if (t.closest('[data-loc]')) { applyLoc(); return; }
   if (t.closest('[data-adopt]') && view.kind === 'preview') {
     const i = view.item;
-    const saved = savePlace({ id: newId(), name: i.name, cat: i.cat, note: i.blurb || '', fav: false, exact: i.source === 'osm' || !!i.exact, lat: i.lat, lng: i.lng, ideaId: i.ideaId || null, tags: [] });
+    const saved = savePlace({ id: newId(), name: i.name, cat: i.cat, note: i.blurb || '', fav: false, exact: i.source === 'osm' || !!i.exact, lat: i.lat, lng: i.lng, ideaId: i.ideaId || null, tags: [], icon: i.icon || null, sorted: i.source === 'transit' });
     bounceId = saved.id; toast('Added to your map. Tap Edit pin to tag it.');
     openDetail(saved.id, false);
     return;
@@ -1715,7 +2008,7 @@ document.querySelector('.panel').addEventListener('click', e => {
 
 document.querySelector('.panel').addEventListener('change', e => {
   if (view.kind === 'spend') { spend.onChange(e.target, spendCtx()); return; }
-  if (e.target.id === 'trip-start') { saveTrip({ start: e.target.value }); renderPanel(); return; }
+  if (e.target.id === 'trip-start') { saveTrip({ start: e.target.value }); if (listMode === 'today') applyListMode('today'); renderMap(); renderPanel(); return; }
   const dpk = e.target.closest?.('[data-dp]');
   if (dpk && view.kind === 'daypick') { const pb = $('#pbody'), top = pb.scrollTop; dpk.checked ? view.picks.add(dpk.dataset.dp) : view.picks.delete(dpk.dataset.dp); renderPanel(); pb.scrollTop = top; return; }
   const sd = e.target.closest?.('[data-setday]');
@@ -1740,8 +2033,9 @@ window.addEventListener('storage', e => { if (e.key === STORAGE_KEY) { load(); i
     setInterval(() => { if (document.visibilityState === 'visible') loadViewOnly(); }, 60000);
     return;
   }
-  load(); loadTrip(); spend.load();
+  load(); loadTrip(); spend.load(); ess.load();
   await seedOnFirstVisit();
+  { const ti = todayInfo(); if (ti.state === 'on' && stopsOf(ti.day).length) applyListMode('today'); }
   renderMap(); renderPanel();
   if (places.length) fitAll();
   sync.startSync({
@@ -1751,6 +2045,7 @@ window.addEventListener('storage', e => { if (e.key === STORAGE_KEY) { load(); i
     onJoined: () => { view = { kind: 'sync' }; draft = null; renderPanel(); toast('This device is now synced with your trip'); },
   });
   renderStatus(sync.getStatus());
+  ess.startSync({ onChange: () => { if (view.kind === 'essentials' && !view.edit) renderPanel(); } });
   // Private spending sync: its own secret code, never the trip code.
   spend.startSync({
     onChange: () => { if (view.kind === 'spend') spend.keepForm(renderPanel); },

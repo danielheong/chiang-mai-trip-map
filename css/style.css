@@ -397,7 +397,7 @@ button{cursor:pointer}
 }
 
 /* ---------- view-only shared map ---------- */
-.viewonly #addBtn,.viewonly #syncBtn,.viewonly #spendBtn,.viewonly .wide-only,.viewonly [data-edit],.viewonly [data-adopt],.viewonly [data-visit],.viewonly .daypick,.viewonly .mv,.viewonly #importFile{display:none!important}
+.viewonly #addBtn,.viewonly #menuBtn,.viewonly .donebtn,.viewonly [data-addfirst],.viewonly [data-edit],.viewonly [data-adopt],.viewonly [data-visit],.viewonly .daypick,.viewonly .mv,.viewonly #importFile{display:none!important}
 .viewonly .pfoot{pointer-events:none}
 .offl{border-top:1.5px dashed var(--line);margin-top:6px;padding-top:12px}
 
@@ -548,3 +548,139 @@ button{cursor:pointer}
 .idea .hero .trdot svg{width:56%;height:56%}
 .idea .hero .trdot.k-train{background:#7A5C8F}.idea .hero .trdot.k-plane{background:#3F7F8C}.idea .hero .trdot.k-songthaew{background:#B5574A}.idea .hero .trdot.k-taxi{background:#8A8170}
 .idea .hero .trdot.k-stop{background:var(--card);color:#4F6F8F;border:2px solid #4F6F8F}
+
+/* =====================================================================
+   Design pass: one clear text hierarchy and calmer controls.
+   Roles:  display (Amatic SC)  panel titles only
+           name    (Patrick Hand) things you named: places, days, buttons
+           label   (Nunito caps)  section headers and field labels
+           body    (Nunito)       notes, meta, numbers
+   ===================================================================== */
+:root{ --muted:#6B6455; --label:#5F7449 }
+.eyebrow,.group h3,.flabel,.sres h4,.qhead{font-family:var(--f-body);font-weight:700;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--label)}
+.group h3{margin:16px 6px 4px}
+.group h3 span{font-size:11.5px;letter-spacing:0;color:var(--muted);font-weight:600}
+.eyebrow{display:block;margin-bottom:4px}
+.qhead{padding:4px 10px 7px}
+.sres h4{margin:10px 10px 4px}
+
+/* panel header: title, count, views, filter */
+.ptitle{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.pcount{font-family:var(--f-body);font-size:13px;font-weight:600;color:var(--muted)}
+.modebar{display:flex;align-items:center;gap:8px;margin-top:10px}
+.modes{display:flex;gap:2px;margin:0;padding:3px;background:var(--paper-2);border-radius:14px;min-width:0;flex:0 1 auto}
+.mode{border:0;background:none;font-family:var(--f-hand);font-size:17px;line-height:1.2;color:var(--muted);padding:4px 11px;border-radius:11px;white-space:nowrap}
+.mode[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(74,64,54,.18)}
+.filterbtn{margin-left:auto;display:inline-flex;align-items:center;gap:6px;border:1.5px solid var(--line);background:none;border-radius:12px;padding:5px 10px;font-family:var(--f-hand);font-size:16px;color:var(--ink);flex:none}
+.filterbtn svg{width:16px;height:16px}
+.filterbtn[aria-expanded="true"]{background:var(--paper-2)}
+.filterbtn b{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-family:var(--f-body);font-size:11.5px}
+.fdrawer{margin-top:10px;display:flex;flex-direction:column;gap:8px;padding-top:10px;border-top:1.5px dashed var(--line)}
+.frow{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;align-items:start}
+.frow .flabel{padding-top:6px;margin:0}
+.frow .filters{margin:0}
+
+/* list rows */
+.item .nt{font-size:13.5px;line-height:1.35}
+.item .km{font-family:var(--f-body);font-size:12.5px;font-weight:600}
+.approx{font-family:var(--f-body);font-size:11.5px;font-weight:700}
+.lnote{font-size:13.5px}
+.leg{display:flex;align-items:center;gap:10px;margin:0 0 0 29px;font-family:var(--f-body);font-size:12px;font-weight:600;color:var(--muted)}
+.leg i{width:0;height:18px;border-left:2.5px dotted color-mix(in srgb,var(--muted) 55%,transparent)}
+.daytotal{margin:8px 6px 2px;font-size:12.5px;font-weight:600;color:var(--muted)}
+
+/* place card: name → status → directions → plan → details */
+.idea.card{gap:14px}
+.metaline{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;margin:0;font-size:13.5px;color:var(--muted)}
+.metaline .openst{font-family:var(--f-body);font-size:13.5px;font-weight:700;color:var(--ink);gap:6px}
+.metaline .openst b{width:9px;height:9px}
+.dpill{font-family:var(--f-body);font-size:12px;font-weight:700;color:#fff;background:var(--dc);border-radius:999px;padding:1px 9px}
+.gorow .btn.go:first-child{background:var(--sage-dk);border-color:var(--sage-dk);color:#fff}
+.gorow .btn.go:first-child svg circle{fill:var(--sage-dk)}
+.gorow .btn.go:last-child{background:var(--card);border-color:color-mix(in srgb,var(--ink) 55%,transparent)}
+.plain{margin:0;font-size:14px}
+.cardfoot{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between;border-top:1.5px dashed var(--line);padding-top:10px}
+.linkbtn{border:0;background:none;padding:0;font-family:var(--f-hand);font-size:17px;color:var(--ink);text-decoration:underline;text-decoration-color:var(--accent-dk);text-underline-offset:4px;cursor:pointer}
+.idea .fine,.fine{font-size:12.5px}
+
+/* today */
+.todaytitle{margin:4px 6px 8px;font-family:var(--f-hand);font-size:18px;color:var(--muted)}
+.nextcard{display:flex;flex-direction:column;gap:10px;margin:4px 2px 12px;padding:14px;border-radius:18px;background:var(--card);border:1.5px solid color-mix(in srgb,var(--ink) 22%,transparent);box-shadow:var(--shadow)}
+.nextcard .eyebrow{margin:0;color:var(--accent-dk)}
+.nexthead{display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;align-items:center;border:0;background:none;padding:0;text-align:left;color:var(--ink)}
+.nexthead .dot{width:56px;height:56px}
+.nexthead b{display:block;font-family:var(--f-hand);font-weight:400;font-size:26px;line-height:1.1;text-wrap:balance}
+.nexthead small{display:block;margin-top:3px;font-size:13px;color:var(--muted)}
+.nextnote{margin:0;font-size:13.5px;color:var(--muted)}
+.donebtn{width:100%;background:var(--c-nature);border-color:color-mix(in srgb,var(--ok) 70%,transparent)}
+.tnote{margin:4px 2px 12px;padding:12px 14px;border-radius:16px;background:var(--paper-2);display:flex;flex-direction:column;gap:6px}
+.tnote b{font-family:var(--f-hand);font-weight:400;font-size:21px;line-height:1.2}
+.tnote p{margin:0;font-size:13.5px}
+.tnote.good{background:var(--c-nature)}
+
+/* popovers (Menu, Add, Layers) and search tips */
+.qmenu.pop{width:296px}
+.pi,.tip{width:100%;display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;align-items:center;border:0;background:none;border-radius:12px;padding:8px 10px;text-align:left;color:var(--ink)}
+.pi{cursor:pointer}
+.pi:hover,.pi:focus-visible{background:var(--paper-2);outline:none}
+.pic{display:grid;place-items:center;width:30px;height:30px;border-radius:10px;background:var(--paper-2);color:var(--sage-dk)}
+.pi:hover .pic{background:var(--card)}
+.pic svg{width:18px;height:18px}
+.ptx b{display:block;font-family:var(--f-hand);font-weight:400;font-size:18px;line-height:1.2}
+.ptx small{display:block;font-size:12.5px;line-height:1.3;color:var(--muted)}
+.pi[aria-checked]{grid-template-columns:30px minmax(0,1fr) 22px}
+.pi[aria-checked]::after{content:"";width:20px;height:20px;border-radius:6px;border:1.5px solid var(--line);background:var(--card)}
+.pi[aria-checked="true"]::after{content:"✓";display:grid;place-items:center;background:var(--sage-dk);border-color:var(--sage-dk);color:#fff;font-size:13px;font-weight:700}
+.tip{padding:6px 10px}
+.tiprow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:8px 10px 6px}
+
+/* header */
+#menuBtn{padding:7px 12px}
+.trbtn button[aria-pressed="true"]{background:var(--sage-dk);border-color:var(--sage-dk);color:#fff}
+@media (max-width:860px){
+  #menuBtn span{display:none}
+  #menuBtn{padding:7px 9px}
+  .mode{font-size:16px;padding:4px 8px}
+  .filterbtn span{display:none}
+  .filterbtn{padding:6px 8px}
+  .phead .ptitle h2{font-size:30px}
+}
+
+/* ---------- quick sort ---------- */
+.sortnote{background:var(--c-see)}
+.sortcats{grid-template-columns:repeat(4,1fr);margin-top:2px}
+.sortcats button{display:flex;flex-direction:column;align-items:center;gap:2px;border:1.5px solid var(--line);background:var(--card);border-radius:16px;padding:8px 2px 6px;font-family:var(--f-hand);font-size:15px;color:var(--ink)}
+.sortcats button:hover{background:var(--paper-2);border-color:color-mix(in srgb,var(--ink) 35%,transparent)}
+.sortcats button .dot{width:40px;height:40px}
+
+/* ---------- trip essentials ---------- */
+.ess{display:flex;flex-direction:column;gap:6px;padding:4px 6px}
+.esec{display:flex;flex-direction:column;gap:8px;padding:12px 0;border-bottom:1.5px dashed var(--line)}
+.esec:last-of-type{border-bottom:0}
+.ehead{margin:0;font-family:var(--f-body);font-weight:700;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--label)}
+.form.ess .ehead{margin-top:8px;padding-top:12px;border-top:1.5px dashed var(--line)}
+.form.ess .ehead:first-child{margin-top:0;padding-top:0;border-top:0}
+.ename{margin:0;font-family:var(--f-hand);font-size:26px;line-height:1.1}
+.eaddr{margin:0;font-size:14.5px;line-height:1.4}
+.eaddr.thai,.form.ess [lang="th"]{font-family:"Sarabun","Thonburi","Noto Sans Thai",system-ui,sans-serif;font-size:16px}
+.egrid{display:flex;flex-direction:column;gap:8px}
+.erow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 10px;align-items:end}
+.erow .eyebrow{grid-column:1 / -1;margin-bottom:1px}
+.erow p{margin:0;font-size:14.5px;overflow-wrap:anywhere}
+.linkbtn.sm{font-size:15px}
+.ecalls{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ecall{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;background:var(--paper-2);text-decoration:none;color:var(--ink)}
+.ecall b{font-family:var(--f-body);font-weight:700;font-size:19px;font-variant-numeric:tabular-nums;color:var(--accent-dk)}
+.ecall span{font-size:13px;font-weight:600;line-height:1.2}
+.ecall small{display:block;font-weight:400;color:var(--muted);font-size:11.5px}
+.xrow{display:grid;grid-template-columns:2fr 3fr;gap:6px;margin-bottom:6px}
+.form.ess select,.form.ess input[type=date]{width:100%;border:1.5px solid var(--line);background:var(--paper);border-radius:14px;padding:8px 10px}
+.driver{position:fixed;inset:0;z-index:5000;background:rgba(63,58,49,.55);display:grid;place-items:center;padding:max(16px,env(safe-area-inset-top,0px)) 16px max(16px,env(safe-area-inset-bottom,0px))}
+.dcard{width:min(560px,100%);max-height:100%;overflow:auto;background:#fff;color:#1d1b17;border-radius:24px;padding:24px 22px;display:flex;flex-direction:column;gap:10px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:"Sarabun","Thonburi","Noto Sans Thai",system-ui,sans-serif}
+.dlead{font-size:22px;font-weight:600}
+.dsub{font-size:13px;color:#6b6455;margin-top:-8px}
+.dname{margin:6px 0 0;font-size:clamp(26px,7vw,40px);font-weight:700;line-height:1.15;text-wrap:balance}
+.dthai{margin:0;font-size:clamp(24px,6.4vw,36px);line-height:1.35;font-weight:600;overflow-wrap:anywhere}
+.den{margin:0;font-size:17px;line-height:1.4;color:#4a4036}
+.dphone{margin:0;font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.dcard .btn{align-self:center;margin-top:8px}

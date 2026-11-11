@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Patrick+Hand&family=Nunito:wght@400;600;700&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="css/style.css?v=202611112208">
+  <link rel="stylesheet" href="css/style.css?v=202611112226">
 </head>
 <body>
   <!-- Shared watercolor filters: soft wobbly edges + pigment pooling. Used by pins and dots. -->
@@ -40,15 +40,15 @@
       <p>temples, khao soi &amp; slow mornings</p>
     </div>
     <div class="top-actions">
-      <button class="btn ghost" id="spendBtn" type="button" title="Your private spending log (not shared)">Spend</button>
-      <button class="btn ghost" id="syncBtn" type="button" title="Keep pins the same on all your devices">Sync</button>
-      <button class="btn ghost wide-only" id="exportBtn" type="button" title="Save your pins to a file">Export</button>
-      <label class="btn ghost wide-only" for="importFile" title="Load pins from a file">Import</label>
-      <input type="file" id="importFile" accept="application/json,.json" hidden>
-      <button class="btn primary" id="addBtn" type="button">
+      <button class="btn primary" id="addBtn" type="button" aria-haspopup="menu" aria-expanded="false">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.5v13M5.5 12h13" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>
         <span>Add a place</span>
       </button>
+      <button class="btn ghost" id="menuBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Menu: trip essentials, spending, sync and more">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7h15M4.5 12h15M4.5 17h15" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        <span>Menu</span>
+      </button>
+      <input type="file" id="importFile" accept="application/json,.json" hidden>
     </div>
   </header>
 
@@ -60,15 +60,11 @@
         <div class="search" id="search">
           <div class="sbox">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5 20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-            <input id="q" type="text" placeholder="Search places, your pins or #tags" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="sres" aria-autocomplete="list">
+            <input id="q" type="text" placeholder="Search, or paste a Google Maps link" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="false" aria-controls="sres" aria-autocomplete="list">
             <button type="button" class="x" id="qclear" aria-label="Clear search" hidden>×</button>
           </div>
           <div class="sres" id="sres" role="listbox" hidden></div>
         </div>
-        <button class="pill" id="ideasBtn" type="button" aria-pressed="false" title="Show suggested spots">
-          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-dasharray="2.4 2"/></svg>
-          Ideas
-        </button>
       </div>
       <div class="ovl banner" id="banner" hidden><span id="bannerText">Tap the map where it is</span><button type="button" id="bannerCancel">Cancel</button></div>
       <div class="ovl locbtn"><button type="button" id="locBtn" aria-label="Show where I am" title="Show where I am" aria-pressed="false">
@@ -78,8 +74,8 @@
         <span><i class="lg k-plane"></i>Airport</span><span><i class="lg k-train"></i>Train</span><span><i class="lg"></i>Bus terminal</span><span><i class="lg k-songthaew"></i>Songthaew</span><span><i class="lg k-taxi"></i>Taxi</span><span><i class="lg k-stop"></i>Bus stop</span>
         <em>Zoom in to see bus stops</em>
       </div>
-      <div class="ovl trbtn"><button type="button" id="trBtn" aria-label="Show transport: stations, terminals and bus stops" title="Getting around: stations, terminals, bus stops" aria-pressed="false">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="4" width="15" height="13" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4.5 11h15" stroke="currentColor" stroke-width="1.8"/><circle cx="8.3" cy="14" r="1" fill="currentColor"/><circle cx="15.7" cy="14" r="1" fill="currentColor"/><path d="M7.5 17v2.5M16.5 17v2.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      <div class="ovl trbtn"><button type="button" id="layersBtn" aria-label="Map layers: transport spots and ideas" title="Map layers" aria-haspopup="menu" aria-expanded="false" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 3.5 8.5 12 13l8.5-4.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4.5 12.5 12 16.5l7.5-4M4.5 16 12 20l7.5-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button></div>
       <div class="ovl fitbtn"><button type="button" id="zfit" aria-label="Show all pins" title="Show all pins">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -98,6 +94,6 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
-  <script type="module" src="js/app.js?v=202611112208"></script>
+  <script type="module" src="js/app.js?v=202611112226"></script>
 </body>
 </html>

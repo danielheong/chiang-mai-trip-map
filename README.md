@@ -12,6 +12,11 @@ A hand-painted-style map for planning a Chiang Mai trip: pastel watercolor stree
 - **Place cards:** click a pin to see its notes and tags, with one-tap **Google Maps** and **Waze** directions.
 - **Search your own pins** by name, note or tag, alongside places and OpenStreetMap results.
 - **You are here:** the locate button shows your position; **Near me** sorts your pins by distance.
+- **Today:** during the trip the map opens on today's plan: the next stop with one-tap directions, a **Done, next stop** button, and what comes after.
+- **Travel times:** day plans show the walk or drive between stops and a total for the day, with the route drawn along real roads.
+- **Trip essentials** (Menu): where you're staying with the address in Thai and a big **Show to driver** card, flights, booking references and emergency numbers. Works offline; synced encrypted to your own devices.
+- **Quick sort:** imported places without a type get a one-tap-each sorting screen.
+- **One menu:** spending, sync, offline map, sharing and backups live under **Menu**; **Add a place** offers search, paste a Google Maps link, or drop a pin.
 - **Quick actions:** the **⋯** next to each place in the list opens Edit, Mark as visited, Must-go, Plan for a day, Show on map, Google Maps/Waze directions and Delete (with Undo).
 - **Getting around:** the bus button on the map shows the airport, train station, bus terminals and taxi stands, plus bus stops as small dots once you zoom in. Tap one for directions. Off by default to keep the map calm.
 - **Visited:** tick places off; visited pins fade on the map and can be hidden.
@@ -99,6 +104,8 @@ css/style.css         all styling (light + dark tokens at the top)
 js/app.js             map, search, panel, storage
 js/data.js            categories, pin glyphs, built-in places
 js/mapstyle.js        the watercolor map colours
+js/routing.js          walking/driving times between stops
+js/essentials.js       trip essentials card
 js/sync.js            Supabase sync (merge per pin, newest edit wins)
 js/config.js          Supabase URL + public key (blank = sync off)
 supabase/setup.sql    one-time database setup
