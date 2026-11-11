@@ -1,6 +1,6 @@
 /* Layout: a painted watercolor map on cream paper. Desktop = map + notebook panel on the right;
    phone = full-screen map with the panel as a sheet that slides up from the bottom.
-   One deliberate light look (pastel paper), so there is no dark theme. */
+   The day look is pastel paper; the night look (data-theme="night" on <html>) is at the end of this file. */
 :root{
   color-scheme:light;
   --paper:#F4EEDF; --paper-2:#EDE5D1; --card:#FBF7EE; --ink:#3F3A31; --muted:#7D7564; --line:#DDD3BC;
@@ -53,10 +53,10 @@ button{cursor:pointer}
 
 /* ---------- layout ---------- */
 .app{width:100%;max-width:1440px;margin:0 auto;display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;flex:1;min-height:0}
-.mapwrap{position:relative;overflow:hidden;border-radius:var(--r);background:#BCCB9E;box-shadow:var(--shadow);min-height:420px}
+.mapwrap{position:relative;overflow:hidden;border-radius:var(--r);background:var(--map-land,#BCCB9E);box-shadow:var(--shadow);min-height:420px}
 .mapwrap::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:1002;
   box-shadow:inset 0 0 0 1.5px rgba(74,64,54,.18),inset 0 0 40px rgba(95,116,73,.25)}
-#map{position:absolute;inset:0;background:#BCCB9E}
+#map{position:absolute;inset:0;background:var(--map-land,#BCCB9E)}
 #map.placing,#map.placing .leaflet-interactive{cursor:crosshair}
 .paper{position:absolute;inset:0;pointer-events:none;z-index:1000;mix-blend-mode:multiply;
   background-image:var(--wash),var(--grain);background-size:700px,300px;opacity:.55}
@@ -210,7 +210,7 @@ button{cursor:pointer}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) rotate(-1deg);background:var(--ink);color:var(--paper);padding:8px 18px;border-radius:var(--wobble);font-family:var(--f-hand);font-size:17px;z-index:3000;box-shadow:var(--shadow);max-width:calc(100% - 32px);text-align:center}
 
 /* ---------- Leaflet skin ---------- */
-.leaflet-container{font-family:var(--f-body);background:#BCCB9E}
+.leaflet-container{font-family:var(--f-body);background:var(--map-land,#BCCB9E)}
 .leaflet-control-zoom{border:1.5px solid var(--line)!important;border-radius:16px!important;overflow:hidden;box-shadow:var(--shadow)!important}
 .leaflet-control-zoom a{background:var(--card)!important;color:var(--ink)!important;border-color:var(--line)!important;width:36px!important;height:36px!important;line-height:34px!important;font-family:var(--f-hand)!important;font-size:22px!important}
 .leaflet-bar a:hover{background:var(--paper-2)!important}
@@ -716,3 +716,86 @@ button{cursor:pointer}
 .xadd:has(#x-plan:checked) .xsplit{display:flex}
 .xadd .fine .linkbtn{font-size:15px}
 .bills .xtotal b i{font-family:var(--f-hand);font-style:normal;font-weight:400;font-size:.62em;margin-right:3px;vertical-align:.12em}
+
+/* ---------- phone navigation: bottom tab bar ---------- */
+.tabbar{display:none}
+@media (max-width:860px){
+  html:not(.viewonly) .tabbar{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));flex:none;position:relative;z-index:2500;background:var(--card);background-image:var(--grain);background-size:300px;border-top:1.5px solid var(--line);
+    padding:5px max(6px,env(safe-area-inset-right,0px)) calc(4px + env(safe-area-inset-bottom,0px)) max(6px,env(safe-area-inset-left,0px))}
+  html:not(.viewonly) .top-actions{display:none}
+  html:not(.viewonly) .pfoot{display:none}
+  html:not(.viewonly) .top{padding-bottom:4px}
+  html:not(.viewonly) .toast{bottom:calc(74px + env(safe-area-inset-bottom,0px))}
+}
+.tab{border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:1px;padding:3px 2px 2px;font-family:var(--f-hand);font-size:14.5px;line-height:1.15;color:var(--muted);position:relative;min-height:48px;-webkit-tap-highlight-color:transparent}
+.tab svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;position:relative}
+.tab::before{content:"";position:absolute;top:1px;left:50%;width:46px;height:28px;translate:-50% 0;border-radius:var(--wobble);background:color-mix(in srgb,var(--mustard) 42%,var(--card));opacity:0;scale:.6;transition:opacity .18s,scale .22s cubic-bezier(.3,1.4,.5,1)}
+.tab[aria-current="page"]{color:var(--ink)}
+.tab[aria-current="page"]::before{opacity:1;scale:1}
+.tab[aria-current="page"] svg{color:#3F3A31;stroke-width:2}
+.tab.add{justify-content:center}
+.tab.add::before{display:none}
+.tab.add i{display:grid;place-items:center;width:50px;height:50px;margin-top:-18px;border-radius:50% 46% 52% 48%/48% 52% 46% 50%;background:var(--accent);color:var(--accent-ink);border:1.6px solid color-mix(in srgb,var(--ink) 55%,transparent);box-shadow:var(--shadow);transition:transform .15s}
+.tab.add:active i{transform:scale(.94)}
+.tab.add svg{stroke-width:2.6}
+.tab.warn::after{content:"";position:absolute;top:3px;left:calc(50% + 10px);width:9px;height:9px;border-radius:50%;background:var(--danger);border:1.5px solid var(--card)}
+@media (prefers-reduced-motion:reduce){.tab::before,.tab.add i{transition:none}}
+.moneyseg{display:inline-flex;margin:2px 0 0}
+
+/* ---------- Trip tab ---------- */
+.trip{display:flex;flex-direction:column;gap:8px;padding:2px 4px 12px}
+.trip .ehead{margin:10px 4px 0}
+.tcard{display:grid;gap:3px;text-align:left;border:1.5px solid color-mix(in srgb,var(--ink) 22%,transparent);background:var(--card);border-radius:18px;padding:14px;box-shadow:var(--shadow);color:var(--ink)}
+.tcard .eyebrow{margin:0;color:var(--accent-dk)}
+.tcard b{font-family:var(--f-hand);font-weight:400;font-size:23px;line-height:1.15}
+.tcard small{font-size:13px;color:var(--muted)}
+.trows{display:flex;flex-direction:column;border:1.5px solid var(--line);border-radius:16px;overflow:hidden}
+.trow{display:grid;grid-template-columns:30px minmax(0,1fr) 18px;gap:10px;align-items:center;text-align:left;border:0;background:none;padding:10px 12px;color:var(--ink)}
+.trow + .trow{border-top:1.5px dashed var(--line)}
+.trow:hover{background:var(--paper-2)}
+.trow .pic svg,.themeseg svg{width:20px;height:20px}
+.trow .chev{color:var(--muted);display:grid}
+.trow .chev svg{width:18px;height:18px}
+
+/* ---------- day / night switch ---------- */
+.themeseg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px;padding:3px;background:var(--paper-2);border-radius:16px}
+.themeseg button{display:flex;align-items:center;justify-content:center;gap:7px;border:0;background:none;border-radius:13px;padding:9px 6px;font-family:var(--f-hand);font-size:18px;color:var(--muted)}
+.themeseg button[aria-checked="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.18)}
+.themeseg button[aria-checked="true"] svg{color:var(--mustard)}
+.themehint{margin:0 4px;font-size:13px;color:var(--muted)}
+/* The new look opens out in a circle from the tapped button (see setTheme in app.js). */
+html.theming::view-transition-old(root),html.theming::view-transition-new(root){animation:none;mix-blend-mode:normal}
+html.theming::view-transition-old(root){z-index:1}
+html.theming::view-transition-new(root){z-index:2}
+.lanterns{position:fixed;inset:0;pointer-events:none;z-index:4800;overflow:hidden}
+.lanterns i{position:absolute;bottom:-60px;width:26px;height:34px;border-radius:46% 46% 30% 30%/40% 40% 22% 22%;
+  background:radial-gradient(ellipse at 50% 78%,#FFF1B8 0 18%,#FFC25C 45%,#F08A3C 100%);
+  box-shadow:0 0 18px 6px rgba(255,180,80,.45),0 0 46px 14px rgba(255,150,60,.22);
+  scale:var(--s);opacity:0;animation:lantern var(--t) cubic-bezier(.3,.1,.5,1) var(--d) forwards}
+.lanterns i::after{content:"";position:absolute;left:28%;right:28%;bottom:-3px;height:4px;border-radius:2px;background:#8A4A1E}
+@keyframes lantern{0%{translate:0 0;opacity:0}8%{opacity:.95}50%{translate:var(--x) -55vh}85%{opacity:.8}100%{translate:calc(var(--x) * -.4) -118vh;opacity:0}}
+
+/* ---------- night look ---------- */
+:root[data-theme="night"]{
+  color-scheme:dark;
+  --paper:#232838; --paper-2:#2F3548; --card:#2A3042; --ink:#EFE8D8; --muted:#ABA596; --line:#465068; --label:#B9D09B;
+  --sage:#8FA872; --sage-dk:#B9D09B; --water:#3A5568; --accent:#DE8F7E; --accent-dk:#F2AE9B; --danger:#F0907F; --ok:#8DB36E;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px rgba(0,0,0,.42);
+  --map-land:#2B3442;
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='2'/%3E%3CfeColorMatrix values='0 0 0 0 .04 0 0 0 0 .05 0 0 0 0 .1 0 0 0 .4 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+}
+:root[data-theme="night"] .tab::before{background:color-mix(in srgb,var(--mustard) 78%,var(--card))}
+/* Pastel surfaces keep their paper look at night, like notes pinned on a dark board, so their text goes back to ink. */
+:root[data-theme="night"] :is(.pill[aria-pressed="true"],.tchip[aria-pressed="true"],.tg.edit,.btn.go,.btn.done,.donebtn,.joinhint,.xtotal,.tnote.good,.sortnote,.bseg input:checked + span,.dcard){
+  --paper:#F4EEDF; --paper-2:#EDE5D1; --card:#FBF7EE; --ink:#3F3A31; --muted:#6B6455; --line:#DDD3BC; --label:#5F7449;
+  --sage-dk:#5F7449; --accent-dk:#B86A59; --danger:#B5483A; --ok:#6E8F52; color:var(--ink)}
+:root[data-theme="night"] .paper{opacity:.28}
+:root[data-theme="night"] .mapwrap::after{box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.3),inset 0 0 60px rgba(10,14,30,.55)}
+:root[data-theme="night"] .arealbl span{color:#C7D0B6}
+:root[data-theme="night"] .arealbl.water span{color:#9DBAD6}
+:root[data-theme="night"] .ideaicon .nm{color:#C9D2BC;text-shadow:0 0 3px #2B3442,0 0 3px #2B3442,0 0 4px #2B3442}
+:root[data-theme="night"] .pinicon .art{filter:drop-shadow(0 0 5px rgba(255,214,150,.35))}
+:root[data-theme="night"] :is(.pi[aria-checked="true"]::after,.trbtn button[aria-pressed="true"]){color:#232838}
+:root[data-theme="night"] .btn.primary:hover{background:color-mix(in srgb,var(--accent) 88%,#000)}
+:root[data-theme="night"] .toast{background:#F4EEDF;color:#3F3A31}
+:root[data-theme="night"] input,:root[data-theme="night"] select,:root[data-theme="night"] textarea{color-scheme:dark}

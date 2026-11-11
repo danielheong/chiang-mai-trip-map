@@ -5,7 +5,7 @@
 // the trip code and stored under a separate, derived namespace. So every device with the trip
 // code gets it, the server can't read it, and view-only links (which read the pin rows of the
 // real trip code) never include it.
-import { rpc, isConfigured, getCode } from './sync.js?v=202611112358';
+import { rpc, isConfigured, getCode } from './sync.js?v=202611120012';
 
 const KEY = 'cm-trip-map-essentials';
 const ROW = '__ess';
@@ -32,6 +32,7 @@ function save(next) {
   schedule();
 }
 const isEmpty = () => !(data.stayName || data.stayAddr || data.stayThai || data.arrive || data.depart || data.extra.length || data.insurer || data.embassy || data.notes || data.stayRef);
+export const summary = () => ({ stayName: data.stayName, empty: isEmpty() });
 const fmtDate = d => (d ? new Date(d + 'T00:00:00Z').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' }) : '');
 const tel = n => `tel:${String(n).replace(/[^0-9+]/g, '')}`;
 

@@ -19,13 +19,31 @@ export const PAINT = {
   halo:      '#F5F0DE',
 };
 
-const P = PAINT;
+// Night: indigo land, deep water and lamp-lit roads, like the city after dusk.
+export const PAINT_NIGHT = {
+  land:      '#2B3442',
+  urban:     '#313B4A',
+  park:      '#2A4239',
+  wood:      '#263C35',
+  farmland:  '#2F3C41',
+  water:     '#1A2540',
+  waterLine: '#22304F',
+  road:      '#8B7B58',
+  roadMinor: '#5F584B',
+  path:      '#4E4A41',
+  building:  '#3B4658',
+  runway:    '#3A4252',
+  label:     '#B4BBC8',
+  labelWater:'#8AA3C6',
+  halo:      '#222A36',
+};
+
 const line = (ids) => ['match', ['get', 'class'], ids, true, false];
 const notTunnel = ['!=', ['get', 'brunnel'], 'tunnel'];
 const w = (stops) => ['interpolate', ['exponential', 1.5], ['zoom'], ...stops];
 const name = ['coalesce', ['get', 'name:en'], ['get', 'name_en'], ['get', 'name:latin'], ['get', 'name']];
 
-export const watercolorStyle = {
+const build = P => ({
   version: 8,
   name: 'Chiang Mai watercolor',
   glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
@@ -86,4 +104,6 @@ export const watercolorStyle = {
         'text-size': ['match', ['get', 'class'], 'city', 15, 'town', 12, 11] },
       paint: { 'text-color': P.label, 'text-halo-color': P.land, 'text-halo-width': 1.5 } },
   ],
-};
+});
+export const watercolorStyle = build(PAINT);
+export const nightStyle = build(PAINT_NIGHT);

@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Chiang Mai Trip Map</title>
   <meta name="description" content="Pin where you'll sleep, eat and wander in Chiang Mai.">
-  <meta name="theme-color" content="#F4EEDF">
+  <meta name="theme-color" content="#F4EEDF" id="themeColor">
+  <!-- Day or night look, set before anything paints so there is no flash. -->
+  <script>(function(){try{var t=JSON.parse(localStorage.getItem('cm-trip-map-theme')||'"day"');if(t==='night'||(t==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.dataset.theme='night';document.getElementById('themeColor').content='#232838';}}catch(e){}})();</script>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Chiang Mai">
@@ -18,7 +20,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Patrick+Hand&family=Nunito:wght@400;600;700&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-  <link rel="stylesheet" href="css/style.css?v=202611112358">
+  <link rel="stylesheet" href="css/style.css?v=202611120012">
 </head>
 <body>
   <!-- Shared watercolor filters: soft wobbly edges + pigment pooling. Used by pins and dots. -->
@@ -89,11 +91,19 @@
       <button type="button" class="pfoot" id="pfoot"><b></b><span id="syncTxt">Saved on this device only</span></button>
     </aside>
   </main>
+  <!-- Phone navigation: one bar for the whole app (hidden on wide screens, which keep the Menu button). -->
+  <nav class="tabbar" id="tabbar" aria-label="Sections">
+    <button type="button" class="tab" data-tab="map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.500 6.500 9 4.500l6 2 5.500-2v13L15 19.500l-6-2-5.500 2zM9 4.500v13M15 6.500v13"/></svg><span>Map</span></button>
+    <button type="button" class="tab" data-tab="plan"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5.500" width="16" height="14" rx="2.500"/><path d="M4 10h16M9 3.500v4M15 3.500v4"/></svg><span>Plan</span></button>
+    <button type="button" class="tab add" data-tab="add" aria-label="Add a place" aria-haspopup="menu" aria-expanded="false"><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.500v13M5.500 12h13"/></svg></i></button>
+    <button type="button" class="tab" data-tab="money"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.500A2.500 2.500 0 0 1 6.500 6H18v3M4 8.500v8A2.500 2.500 0 0 0 6.500 19H20V9H6.500A2.500 2.500 0 0 1 4 8.500z"/><circle cx="16" cy="14" r="1.100"/></svg><span>Money</span></button>
+    <button type="button" class="tab" data-tab="trip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.500" y="8" width="17" height="11.500" rx="2.500"/><path d="M9 8V6a1.500 1.500 0 0 1 1.500-1.500h3A1.500 1.500 0 0 1 15 6v2M3.500 13h17"/></svg><span>Trip</span></button>
+  </nav>
   <div class="toast" id="toast" role="status" hidden></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js"></script>
-  <script type="module" src="js/app.js?v=202611112358"></script>
+  <script type="module" src="js/app.js?v=202611120012"></script>
 </body>
 </html>

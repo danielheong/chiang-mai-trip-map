@@ -15,6 +15,8 @@ A hand-painted-style map for planning a Chiang Mai trip: pastel watercolor stree
 - **Today:** during the trip the map opens on today's plan: the next stop with one-tap directions, a **Done, next stop** button, and what comes after.
 - **Travel times:** day plans show the walk or drive between stops and a total for the day, with the route drawn along real roads.
 - **Trip essentials** (Menu): where you're staying with the address in Thai and a big **Show to driver** card, flights, booking references and emergency numbers. Works offline; synced encrypted to your own devices.
+- **Phone navigation**: a bottom bar with Map, Plan, Add, Money and Trip.
+- **Day and night look** (Trip tab on phones, Menu on a computer): Day, Night or Auto. Night switches the whole app and the map to a dusk palette.
 - **Shared bills** (Menu): key in a bill once, say who paid and how it is split. It shows who owes who in baht, lets you settle up, and adds each person's part to their own private Spending. Synced encrypted to devices with the trip code.
 - **Quick sort:** imported places without a type get a one-tap-each sorting screen.
 - **One menu:** spending, sync, offline map, sharing and backups live under **Menu**; **Add a place** offers search, paste a Google Maps link, or drop a pin.

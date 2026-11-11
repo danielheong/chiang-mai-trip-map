@@ -2,14 +2,14 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611112358';
-import { watercolorStyle } from './mapstyle.js?v=202611112358';
-import * as sync from './sync.js?v=202611112358';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611112358';
-import * as spend from './expenses.js?v=202611112358';
-import * as ess from './essentials.js?v=202611112358';
-import * as bills from './bills.js?v=202611112358';
-import { routeFor, legText, totalText } from './routing.js?v=202611112358';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611120012';
+import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611120012';
+import * as sync from './sync.js?v=202611120012';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611120012';
+import * as spend from './expenses.js?v=202611120012';
+import * as ess from './essentials.js?v=202611120012';
+import * as bills from './bills.js?v=202611120012';
+import { routeFor, legText, totalText } from './routing.js?v=202611120012';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -49,6 +49,12 @@ function km(a, b) {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
+// Day / night look. 'auto' follows the phone or computer setting. Applied first in index.html (no flash).
+const THEME_KEY = 'cm-trip-map-theme';
+const darkMQ = matchMedia('(prefers-color-scheme: dark)');
+let themePref = (() => { try { const t = JSON.parse(localStorage.getItem(THEME_KEY)); return ['day', 'night', 'auto'].includes(t) ? t : 'day'; } catch { return 'day'; } })();
+const isNight = () => themePref === 'night' || (themePref === 'auto' && darkMQ.matches);
+let mapNight = isNight();
 let toastT;
 function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), 2600); }
 // A toast with an action button (e.g. Undo). Stays a little longer.
@@ -192,7 +198,7 @@ L.control.scale({ position: 'bottomleft', imperial: false }).addTo(map);
 // Basemap: our own watercolor style (js/mapstyle.js) on OpenFreeMap's free vector tiles,
 // drawn by MapLibre GL inside Leaflet. A paper texture is laid over it in CSS (.paper).
 const ATTR = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
-const base = L.maplibreGL({ style: watercolorStyle, attribution: ATTR }).addTo(map);
+const base = L.maplibreGL({ style: mapNight ? nightStyle : watercolorStyle, attribution: ATTR }).addTo(map);
 base.getMaplibreMap().on('error', e => console.warn('Basemap:', e.error?.message || e));
 
 const decorLayer = L.layerGroup().addTo(map);
@@ -463,8 +469,10 @@ function goButtons(p) {
 }
 const tagChips = (tags, cls = 'tg') => (tags || []).map(t => `<span class="${cls}">${esc(t)}</span>`).join('');
 
-function renderPanel() {
+function renderPanel() { renderPanelInner(); decoratePanel(); }
+function renderPanelInner() {
   const head = $('#phead'), body = $('#pbody');
+  if (view.kind === 'trip') { renderTrip(head, body); return; }
   if (view.kind === 'list') {
     const n = places.length;
     const nv = places.filter(p => p.visited).length;
@@ -472,9 +480,9 @@ function renderPanel() {
     const ti = todayInfo();
     const sub = listMode === 'today' && ti.state === 'on' ? `Day ${ti.day}${dayDate(ti.day).text ? ' · ' + esc(dayDate(ti.day).text) : ''}`
       : n ? `${n} ${n === 1 ? 'place' : 'places'}${nv ? ` · ${nv} visited` : ''}` : '';
-    head.innerHTML = `<div class="ptitle"><h2>${listMode === 'today' ? 'Today' : 'My places'}</h2>${sub ? `<span class="pcount">${sub}</span>` : ''}</div>
+    head.innerHTML = `<div class="ptitle"><h2>${listMode === 'today' ? 'Today' : useTabs() && listMode === 'days' ? 'Plan' : 'My places'}</h2>${sub ? `<span class="pcount">${sub}</span>` : ''}</div>
       ${n ? `<div class="modebar"><div class="modes" role="tablist" aria-label="Views">
-        ${[['today', 'Today'], ['type', 'Places'], ['near', 'Near me'], ['days', 'Days']].map(([k, t]) => `<button type="button" role="tab" class="mode" data-listmode="${k}" aria-selected="${listMode === k}">${t}</button>`).join('')}</div>
+        ${(!useTabs() ? [['today', 'Today'], ['type', 'Places'], ['near', 'Near me'], ['days', 'Days']] : listMode === 'today' || listMode === 'days' ? [['today', 'Today'], ['days', 'All days']] : [['type', 'Places'], ['near', 'Near me']]).map(([k, t]) => `<button type="button" role="tab" class="mode" data-listmode="${k}" aria-selected="${listMode === k}">${t}</button>`).join('')}</div>
         <button type="button" class="filterbtn" data-filtertoggle aria-expanded="${filtersOpen}" aria-label="Filter places${fcount ? `, ${fcount} active` : ''}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16M7 12h10M10 17.5h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Filter</span>${fcount ? `<b>${fcount}</b>` : ''}</button></div>` : ''}
       ${n && filtersOpen ? `<div class="fdrawer">
         <div class="frow"><span class="flabel">Type</span><div class="filters" role="group" aria-label="Show types">${CAT_KEYS.map(c => `<button type="button" class="fchip" data-f="${c}" aria-pressed="${filters.has(c)}">${dotHTML(c)}${CATS[c].short || CATS[c].label}</button>`).join('')}</div></div>
@@ -720,6 +728,10 @@ const ICO = {
   pin: ico('<path d="M12 21s-6.500-6.400-6.500-11.200a6.500 6.500 0 0 1 13 0C18.500 14.600 12 21 12 21z"/><circle cx="12" cy="9.800" r="2.200"/>'),
   bus: ico('<rect x="4.500" y="4" width="15" height="13" rx="2.500"/><path d="M4.500 11h15M7.500 17v2.500M16.500 17v2.500"/>'),
   idea: ico('<circle cx="12" cy="12" r="7" stroke-dasharray="2.600 2.600"/>'),
+  sun: ico('<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.600 5.600 7 7M17 17l1.400 1.400M5.600 18.400 7 17M17 7l1.400-1.400"/>'),
+  moon: ico('<path d="M19.500 14.500A8 8 0 0 1 9.500 4.500a8 8 0 1 0 10 10z"/>'),
+  auto: ico('<circle cx="12" cy="12" r="8"/><path d="M12 4v16M12 7.500l4.500 3M12 12l6.500 2M12 16.500l3.500 1.500"/>'),
+  chev: ico('<path d="M9.500 6l6 6-6 6"/>'),
 };
 const pi = (act, icon, title, sub = '', attrs = '') => `<button type="button" role="menuitem" class="pi" data-pa="${act}" ${attrs}><span class="pic">${icon}</span><span class="ptx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span></button>`;
 function openPop(btn, html, handler) {
@@ -732,7 +744,7 @@ function openPop(btn, html, handler) {
 function placePop() {
   if (!popBtn || popEl.hidden) return;
   const r = popBtn.getBoundingClientRect(), w = popEl.offsetWidth, h = popEl.offsetHeight;
-  let left = Math.min(innerWidth - w - 8, Math.max(8, r.right - w)), top = r.bottom + 6;
+  let left = Math.min(innerWidth - w - 8, Math.max(8, popBtn.closest('#tabbar') ? r.left + r.width / 2 - w / 2 : r.right - w)), top = r.bottom + 6;
   if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 6);
   popEl.style.left = left + 'px'; popEl.style.top = top + 'px';
 }
@@ -750,7 +762,7 @@ popEl.addEventListener('keydown', e => {
   else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
   else if (e.key === 'Tab') closePop();
 });
-document.addEventListener('pointerdown', e => { if (!popEl.hidden && !e.target.closest('#pop, #menuBtn, #addBtn, #layersBtn, [data-addfirst]')) closePop(); });
+document.addEventListener('pointerdown', e => { if (!popEl.hidden && !e.target.closest('#pop, #menuBtn, #addBtn, #layersBtn, #tabbar .add, [data-addfirst]')) closePop(); });
 addEventListener('resize', () => closePop());
 
 function openMainMenu() {
@@ -765,8 +777,11 @@ function openMainMenu() {
     ${pi('share', ICO.share, 'Share trip', 'Plan together or send a view-only link')}
     <div class="qsep"></div>
     ${pi('export', ICO.out, 'Back up places', 'Save a file of all your places')}
-    ${pi('import', ICO.inn, 'Restore from a file')}`,
+    ${pi('import', ICO.inn, 'Restore from a file')}
+    <div class="qsep"></div>
+    ${pi('theme', isNight() ? ICO.sun : ICO.moon, isNight() ? 'Day mode' : 'Night mode', themePref === 'auto' ? 'Now following this device' : 'Switch the look of the whole map')}`,
   act => {
+    if (act === 'theme') { setTheme(isNight() ? 'day' : 'night', $('#menuBtn')); return; }
     const go = kind => { draft = null; setMode('browse'); view = { kind }; renderMap(); renderPanel(); setSheet('full'); };
     if (act === 'essentials') openEssentials();
     else if (act === 'spend') openSpend();
@@ -777,8 +792,112 @@ function openMainMenu() {
     else if (act === 'import') $('#importFile').click();
   });
 }
+/* ---------- phone navigation: one bottom bar (Map, Plan, Add, Money, Trip) ---------- */
+const TRIP_VIEWS = ['trip', 'essentials', 'sync', 'offline', 'share'];
+const MONEY_KEY = 'cm-trip-map-money-tab';
+const useTabs = () => isMobile() && !viewOnly;
+function currentTab() {
+  const k = view.kind;
+  if (k === 'bills' || k === 'spend') return 'money';
+  if (TRIP_VIEWS.includes(k)) return 'trip';
+  if (k === 'daypick') return 'plan';
+  return listMode === 'today' || listMode === 'days' ? 'plan' : 'map';
+}
+function syncTabs() {
+  const cur = currentTab();
+  document.querySelectorAll('#tabbar .tab').forEach(b => { if (b.dataset.tab !== 'add') b.setAttribute('aria-current', b.dataset.tab === cur ? 'page' : 'false'); });
+  $('#tabbar [data-tab="trip"]').classList.toggle('warn', sync.getStatus().state === 'error' && navigator.onLine);
+}
+function goTab(tab) {
+  if (tab === 'add') { if (mode === 'adding') setMode('browse'); else openAddMenu(); return; }
+  const same = currentTab() === tab && view.kind === 'list';
+  closePop(); draft = null; setMode('browse');
+  if (tab === 'map') {
+    if (same) { setSheet(panelEl.dataset.sheet === 'peek' ? 'half' : 'peek'); return; }
+    if (listMode === 'today' || listMode === 'days') applyListMode('type');
+    view = { kind: 'list' }; renderMap(); renderPanel(); setSheet('peek');
+  } else if (tab === 'plan') {
+    if (same) { setSheet(panelEl.dataset.sheet === 'full' ? 'half' : 'full'); return; }
+    const ti = todayInfo();
+    if (listMode !== 'today' && listMode !== 'days') applyListMode(ti.state === 'on' && stopsOf(ti.day).length ? 'today' : 'days');
+    view = { kind: 'list' }; renderMap(); renderPanel(); setSheet('half');
+  } else if (tab === 'money') {
+    let last = ''; try { last = localStorage.getItem(MONEY_KEY) || ''; } catch {}
+    if (last === 'spend') openSpend(); else openBills();
+  } else { view = { kind: 'trip' }; renderMap(); renderPanel(); setSheet('full'); }
+  $('#pbody').scrollTop = 0;
+}
+$('#tabbar').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) goTab(b.dataset.tab); });
+// After every panel render on a phone: mark the tab, and make "back" say where it really goes.
+function decoratePanel() {
+  syncTabs();
+  if (!useTabs()) return;
+  const k = view.kind, back = $('#phead .back[data-back]');
+  if (k === 'bills' || k === 'spend') {
+    try { localStorage.setItem(MONEY_KEY, k); } catch {}
+    const seg = `<div class="modes moneyseg" role="tablist" aria-label="Money">${[['bills', 'Shared bills'], ['spend', 'My spending']].map(([v, t]) => `<button type="button" role="tab" class="mode" data-money="${v}" aria-selected="${k === v}">${t}</button>`).join('')}</div>`;
+    if (back) back.outerHTML = seg; else $('#phead').insertAdjacentHTML('afterbegin', seg);
+  } else if (back) back.textContent = TRIP_VIEWS.includes(k) ? '‹ Trip' : listMode === 'today' ? '‹ Today' : listMode === 'days' ? '‹ All days' : listMode === 'near' ? '‹ Near me' : '‹ Places';
+}
+// The Trip tab: essentials up top, then the look of the app, then the set-once things.
+function renderTrip(head, body) {
+  head.innerHTML = `<div class="ptitle"><h2>Trip</h2></div>`;
+  const e = ess.summary(), sy = syncLine();
+  const row = (act, icon, title, sub = '') => `<button type="button" class="trow" data-trip="${act}"><span class="pic">${icon}</span><span class="ptx"><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</span><span class="chev">${ICO.chev}</span></button>`;
+  body.innerHTML = `<div class="trip">
+    <button type="button" class="tcard" data-trip="essentials"><span class="eyebrow">Trip essentials</span>
+      <b>${esc(e.stayName || 'Hotel, flights and bookings')}</b>
+      <small>${e.empty ? 'Add your hotel address, flights and booking references. Opens without signal.' : 'Address to show a driver, flights, bookings, emergency numbers'}</small></button>
+    <h3 class="ehead">Look</h3>
+    ${themeHTML()}
+    <h3 class="ehead">Setup</h3>
+    <div class="trows">${row('sync', ICO.sync, 'Sync devices', esc(sy.txt.replace(' · Set up sync', '').replace(' · tap for details', '')))}
+      ${row('offline', ICO.down, 'Offline map', 'Save Chiang Mai onto this device')}
+      ${row('share', ICO.share, 'Share trip', 'Plan together or send a view-only link')}</div>
+    <h3 class="ehead">Backup</h3>
+    <div class="trows">${row('export', ICO.out, 'Back up places', 'Save a file of all your places')}
+      ${row('import', ICO.inn, 'Restore from a file')}</div>
+  </div>`;
+}
+const themeHTML = () => `<div class="themeseg" role="radiogroup" aria-label="Look of the app">${[['day', ICO.sun, 'Day'], ['night', ICO.moon, 'Night'], ['auto', ICO.auto, 'Auto']].map(([v, ic, t]) => `<button type="button" role="radio" aria-checked="${themePref === v}" data-theme-set="${v}">${ic}<span>${t}</span></button>`).join('')}</div>
+  <p class="fine themehint">${themePref === 'auto' ? 'Auto follows this device’s light or dark setting.' : themePref === 'night' ? 'Night: the city after dusk, easier on the eyes in the evening.' : 'Day: the painted paper map.'}</p>`;
+
+function applyTheme() {
+  const night = isNight();
+  document.documentElement.dataset.theme = night ? 'night' : 'day';
+  $('#themeColor').content = night ? '#232838' : '#F4EEDF';
+  if (mapNight !== night) { mapNight = night; base.getMaplibreMap()?.setStyle(night ? nightStyle : watercolorStyle); }
+}
+// Switch the look. The new one opens out in a circle from the button that was tapped.
+function setTheme(pref, from) {
+  if (pref === themePref) return;
+  const was = isNight();
+  themePref = pref; try { localStorage.setItem(THEME_KEY, JSON.stringify(pref)); } catch {}
+  const change = () => { applyTheme(); renderPanel(); };
+  if (was === isNight()) { change(); return; }
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!calm && isNight()) releaseLanterns();
+  if (calm || !document.startViewTransition || document.visibilityState !== 'visible') { change(); return; }
+  const r = from?.getBoundingClientRect?.(), x = r ? r.left + r.width / 2 : innerWidth / 2, y = r ? r.top + r.height / 2 : innerHeight / 2;
+  const R = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+  const root = document.documentElement;
+  root.classList.add('theming');
+  const vt = document.startViewTransition(change);
+  vt.ready.then(() => root.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${R}px at ${x}px ${y}px)`] }, { duration: 700, easing: 'cubic-bezier(.3,0,.2,1)', pseudoElement: '::view-transition-new(root)' })).catch(() => {});
+  vt.finished.finally(() => root.classList.remove('theming'));
+}
+// A handful of paper lanterns drift up when night falls (Chiang Mai's Yi Peng).
+function releaseLanterns() {
+  const box = document.createElement('div');
+  box.className = 'lanterns'; box.setAttribute('aria-hidden', 'true');
+  box.innerHTML = Array.from({ length: 10 }, () => `<i style="left:${(5 + Math.random() * 88).toFixed(1)}%;--d:${(.3 + Math.random() * 1.8).toFixed(2)}s;--t:${(5 + Math.random() * 3).toFixed(2)}s;--s:${(.55 + Math.random() * .7).toFixed(2)};--x:${Math.round(Math.random() * 70 - 35)}px"></i>`).join('');
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 11000);
+}
+darkMQ.addEventListener('change', () => { if (themePref === 'auto') { applyTheme(); if (view.kind === 'trip') renderPanel(); } });
+
 function openAddMenu() {
-  openPop($('#addBtn'), `<div class="qhead">Add a place</div>
+  openPop(useTabs() ? $('#tabbar .add') : $('#addBtn'), `<div class="qhead">Add a place</div>
     ${pi('search', ICO.search, 'Search by name', 'Hotels, cafés, temples, markets')}
     ${pi('paste', ICO.link, 'Paste a Google Maps link', 'In Google Maps: Share → Copy link. Works for a whole saved list too')}
     ${pi('tap', ICO.pin, 'Drop a pin on the map', 'Tap the exact spot yourself')}`,
@@ -1360,7 +1479,7 @@ function syncLine(st = sync.getStatus()) {
 function renderStatus(st) {
   const f = $('#pfoot'), l = syncLine(st);
   f.className = 'pfoot ' + l.cls; $('#syncTxt').textContent = l.txt;
-  if (view.kind === 'sync') renderPanel();
+  if (view.kind === 'sync' || view.kind === 'trip') renderPanel(); else syncTabs();
 }
 setInterval(() => { if (sync.getStatus().state === 'ok') renderStatus(sync.getStatus()); }, 30000);
 function joinLink() { return `${location.origin}${location.pathname}#join=${sync.fmtCode(sync.getCode())}`; }
@@ -1518,7 +1637,10 @@ function openDetail(id, fly = true) {
   if (fly) flyVis([p.lat, p.lng], Math.max(map.getZoom(), 16), { duration: .6 });
   else keepVisible([p.lat, p.lng]);
 }
-function closeEditor() { draft = null; view = { kind: 'list' }; setMode('browse'); renderMap(); renderPanel(); setSheet('half'); }
+function closeEditor() {
+  const toTrip = useTabs() && view.kind !== 'trip' && TRIP_VIEWS.includes(view.kind);
+  draft = null; view = { kind: toTrip ? 'trip' : 'list' }; setMode('browse'); renderMap(); renderPanel(); setSheet(toTrip ? 'full' : 'half');
+}
 function openPreview(item, fly = true) {
   draft = null; setMode('browse');
   view = { kind: 'preview', item };
@@ -1921,7 +2043,21 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && mode !== '
 document.querySelector('.panel').addEventListener('click', e => {
   const t = e.target;
   if (view.kind === 'spend' && spend.onClick(t, spendCtx())) return;
+  const mny = t.closest('[data-money]');
+  if (mny) { if (mny.dataset.money !== view.kind) (mny.dataset.money === 'spend' ? openSpend : openBills)(); return; }
   if (view.kind === 'bills' && bills.onClick(t, billsCtx())) return;
+  const ths = t.closest('[data-theme-set]');
+  if (ths) { setTheme(ths.dataset.themeSet, ths); return; }
+  const trp = t.closest('[data-trip]');
+  if (trp) {
+    const act = trp.dataset.trip;
+    if (act === 'essentials') openEssentials();
+    else if (act === 'sync') { openSync(); setSheet('full'); }
+    else if (act === 'offline' || act === 'share') { view = { kind: act }; renderPanel(); setSheet('full'); }
+    else if (act === 'export') exportPins();
+    else if (act === 'import') $('#importFile').click();
+    return;
+  }
   const f = t.closest('[data-f]');
   if (f) {
     const c = f.dataset.f;

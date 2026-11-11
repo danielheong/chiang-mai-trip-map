@@ -7,7 +7,7 @@
 // Sync: every bill is encrypted in the browser with a key derived from the trip code and
 // stored under a separate, derived namespace. So devices with the trip code share the bills,
 // the server can't read them, and view-only links never include them.
-import { rpc, isConfigured, getCode } from './sync.js?v=202611112358';
+import { rpc, isConfigured, getCode } from './sync.js?v=202611120012';
 
 const KEY = 'cm-trip-map-bills';
 const SET_KEY = 'cm-trip-map-bills-set';       // { names: [a, b], rate, updatedAt }
@@ -125,7 +125,7 @@ function splitText(b) {
   return `all ${esc(set.names[b.split === 'p0' ? 0 : 1])}’s`;
 }
 function syncNote() {
-  if (!isConfigured() || !getCode()) return 'Only on this device for now. Link your trip code (Menu → Sync devices) so you both see the same bills.';
+  if (!isConfigured() || !getCode()) return 'Only on this device for now. Link your trip code under Sync devices so you both see the same bills.';
   if (!globalThis.crypto?.subtle) return 'Only on this device (this browser can’t encrypt bills for syncing).';
   const st = status.state === 'error' ? esc(status.msg) : status.state === 'syncing' ? 'Syncing…' : 'Up to date.';
   return `<span id="b-syncst">${st}</span> Encrypted and shared with devices on your trip code. Never on view-only links.`;
