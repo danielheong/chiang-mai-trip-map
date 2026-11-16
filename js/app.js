@@ -2,14 +2,14 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611162350';
-import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611162350';
-import * as sync from './sync.js?v=202611162350';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611162350';
-import * as spend from './expenses.js?v=202611162350';
-import * as ess from './essentials.js?v=202611162350';
-import * as bills from './bills.js?v=202611162350';
-import { routeFor, legText, totalText } from './routing.js?v=202611162350';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611170014';
+import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611170014';
+import * as sync from './sync.js?v=202611170014';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611170014';
+import * as spend from './expenses.js?v=202611170014';
+import * as ess from './essentials.js?v=202611170014';
+import * as bills from './bills.js?v=202611170014';
+import { routeFor, legText, totalText } from './routing.js?v=202611170014';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -1627,7 +1627,7 @@ const panelEl = $('#panel');
 const SHEETS = ['peek', 'half', 'full'];
 function sheetPx(state) {
   const h = document.querySelector('.app').clientHeight;
-  return state === 'full' ? h - 8 : state === 'half' ? h * 0.52 : 132;
+  return state === 'full' ? h - 8 : state === 'half' ? h * 0.52 : 142;
 }
 function setSheet(state) {
   if (!isMobile()) return;
@@ -1648,29 +1648,37 @@ function keepVisible(ll) {
   if (pt.y > limit) map.panBy([0, pt.y - limit + 40], { duration: .4 });
 }
 (() => {
-  const grab = $('#grab');
-  let y0 = 0, h0 = 0, moved = false, dragging = false;
-  grab.addEventListener('pointerdown', e => {
+  // The handle and the sky banner both drag the sheet. Moves are applied once per frame and the
+  // limits are measured once at touch-down, so dragging never forces extra layout work.
+  let y0 = 0, h0 = 0, max = 0, want = 0, raf = 0, moved = false, dragging = false;
+  const paint = () => { raf = 0; if (dragging) panelEl.style.height = want + 'px'; };
+  const down = e => {
     if (!isMobile()) return;
-    dragging = true; moved = false; y0 = e.clientY; h0 = panelEl.offsetHeight;
-    grab.setPointerCapture(e.pointerId); panelEl.classList.add('dragging');
-  });
-  grab.addEventListener('pointermove', e => {
+    dragging = true; moved = false; y0 = e.clientY; h0 = want = panelEl.offsetHeight;
+    max = document.querySelector('.app').clientHeight - 8;
+    e.currentTarget.setPointerCapture(e.pointerId); panelEl.classList.add('dragging');
+  };
+  const move = e => {
     if (!dragging) return;
     const dy = e.clientY - y0; if (Math.abs(dy) > 6) moved = true;
-    const max = document.querySelector('.app').clientHeight - 8;
-    panelEl.style.height = Math.max(90, Math.min(max, h0 - dy)) + 'px';
-  });
+    want = Math.max(90, Math.min(max, h0 - dy));
+    if (!raf) raf = requestAnimationFrame(paint);
+  };
   const end = e => {
     if (!dragging) return;
     dragging = false; panelEl.classList.remove('dragging');
-    const h = panelEl.offsetHeight; panelEl.style.height = '';
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    const h = moved ? want : panelEl.offsetHeight; panelEl.style.height = '';
     if (!moved) { const i = SHEETS.indexOf(panelEl.dataset.sheet); setSheet(SHEETS[(i + 1) % 3]); return; }
-    const appH = document.querySelector('.app').clientHeight, r = h / appH, up = e.clientY < y0;
+    const r = h / (max + 8), up = e.clientY < y0;
     setSheet(r > 0.72 ? 'full' : r > 0.3 ? (up && r > 0.6 ? 'full' : 'half') : (up && r > 0.22 ? 'half' : 'peek'));
   };
-  grab.addEventListener('pointerup', end);
-  grab.addEventListener('pointercancel', end);
+  for (const el of [$('#grab'), document.querySelector('.panel .sky')]) {
+    el.addEventListener('pointerdown', down);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  }
   // In peek, tapping the panel heading opens it.
   $('#phead').addEventListener('click', e => {
     if (isMobile() && panelEl.dataset.sheet === 'peek' && !e.target.closest('button,a,input')) setSheet('half');

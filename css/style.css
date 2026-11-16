@@ -859,7 +859,7 @@ html.theming::view-transition-new(root){z-index:2}
 .mapwrap::after{box-shadow:inset 0 0 0 2px rgba(46,42,36,.6),inset 0 0 0 6px var(--card),inset 0 0 0 7.5px var(--mustard),inset 0 0 44px rgba(120,90,40,.16)}
 .tl{left:16px;top:16px;right:16px}
 .decor.landmark svg{width:42px;height:42px;opacity:.95;filter:drop-shadow(0 2px 1.5px rgba(74,64,54,.22))}
-.tint{position:absolute;inset:0;pointer-events:none;z-index:999;background:var(--tint);mix-blend-mode:multiply;transition:background-color 1.2s}
+.tint{position:absolute;inset:0;pointer-events:none;z-index:999;background:var(--tint);transition:background-color 1.2s}
 .compass{left:16px;bottom:42px;width:54px;height:54px;pointer-events:none;opacity:.92}
 .compass svg{display:block;width:100%;height:100%;overflow:visible}
 .arealbl span{color:#5B4A32}
@@ -906,7 +906,7 @@ html.theming::view-transition-new(root){z-index:2}
 :root[data-theme="night"] .nextcard{--paper:#F4EEDF;--paper-2:#EDE5D1;--card:#FBF7EE;--ink:#3F3A31;--muted:#6B6455;--line:#DDD3BC;--label:#5F7449;--sage-dk:#5F7449;--accent-dk:#B86A59;--ok:#6E8F52;color:var(--ink)}
 
 /* ---------- hand-drawn icons: a wobbly ink line (#ink filter in index.html) over a patch of paint ---------- */
-.pic svg,.sbox svg,.fitbtn svg,.locbtn svg,.trbtn svg,.filterbtn svg,.btn svg,.themeseg svg,.more svg,.qi svg,.trow .chev svg,.tab svg{filter:url(#ink)}
+.pic svg,.sbox svg,.fitbtn svg,.locbtn svg,.trbtn svg,.btn svg,.themeseg svg,.qi svg,.tab svg{filter:url(#ink)}
 .pic{position:relative;background:none;color:var(--ink)}
 .pi:hover .pic{background:none}
 .pic::before{content:"";position:absolute;inset:3px -2px -1px 4px;border-radius:46% 54% 50% 50%/55% 45% 55% 45%;background:var(--pw,var(--c-other));opacity:.85}
@@ -934,17 +934,16 @@ svg .w{stroke:none;fill:var(--w,var(--c-other))}
   .tl{left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));top:10px}
   .compass{left:max(10px,env(safe-area-inset-left,0px));top:64px;bottom:auto;width:46px;height:46px}
   #trLegend:not([hidden]) ~ .compass{display:none}
-  .panel{--torn:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 14' preserveAspectRatio='none'%3E%3Cpath d='M0 14V8L8 6L15 9L24 5L33 8L41 4L52 7L60 5L70 9L79 6L90 8L98 4L109 7L118 5L128 9L137 6L147 8L156 4L166 7L175 5L186 9L195 6L205 8L214 4L224 7L233 5L243 9L252 6L262 8L271 4L281 7L290 5L300 8V14Z'/%3E%3C/svg%3E");
-    border-radius:0;box-shadow:none;
-    -webkit-mask-image:var(--torn),linear-gradient(#000,#000);-webkit-mask-size:300px 14px,100% calc(100% - 13px);-webkit-mask-position:0 0,0 13px;-webkit-mask-repeat:repeat-x,no-repeat;
-    mask-image:var(--torn),linear-gradient(#000,#000);mask-size:300px 14px,100% calc(100% - 13px);mask-position:0 0,0 13px;mask-repeat:repeat-x,no-repeat}
-  /* a darker sheet peeks out behind the torn edge */
-  .panel::before{content:"";position:absolute;left:0;right:0;top:0;height:20px;background:color-mix(in srgb,var(--ink) 26%,var(--card));pointer-events:none}
-  .panel::after{content:"";position:absolute;left:0;right:0;top:3px;height:18px;background:var(--card);pointer-events:none;
-    -webkit-mask-image:var(--torn),linear-gradient(#000,#000);-webkit-mask-size:300px 14px,100% 100%;-webkit-mask-position:-47px 0,0 13px;-webkit-mask-repeat:repeat-x,no-repeat;
-    mask-image:var(--torn),linear-gradient(#000,#000);mask-size:300px 14px,100% 100%;mask-position:-47px 0,0 13px;mask-repeat:repeat-x,no-repeat}
-  .grab{position:relative;z-index:1;height:32px;padding:18px 0 4px}
-  .sky{height:52px;margin:4px 14px 6px}
-  .panel[data-sheet="peek"] .sky{display:none}
+  /* The torn edge is two thin strips sitting just above the sheet (a darker one behind), so the sheet itself
+     has no mask and stays cheap to redraw while it is dragged. */
+  .panel{--torn:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 14' preserveAspectRatio='none'%3E%3Cpath d='M0 14V8L8 6L15 9L24 5L33 8L41 4L52 7L60 5L70 9L79 6L90 8L98 4L109 7L118 5L128 9L137 6L147 8L156 4L166 7L175 5L186 9L195 6L205 8L214 4L224 7L233 5L243 9L252 6L262 8L271 4L281 7L290 5L300 8V14Z'/%3E%3C/svg%3E");border-radius:0;box-shadow:none;overflow:visible}
+  .panel::before,.panel::after{content:"";position:absolute;left:0;right:0;height:14px;pointer-events:none;
+    -webkit-mask:var(--torn) 0 0/300px 14px repeat-x;mask:var(--torn) 0 0/300px 14px repeat-x}
+  .panel::before{top:-13px;z-index:1;background:var(--card)}
+  .panel::after{top:-16px;background:color-mix(in srgb,var(--ink) 26%,var(--card));-webkit-mask-position:-47px 0;mask-position:-47px 0}
+  .grab{height:24px;padding:8px 0 4px}
+  .pbody{contain:layout paint}
+  .sky{height:52px;margin:2px 14px 4px;touch-action:none;cursor:grab}
+  :root{--sheet-peek:142px}
   .mapwrap::after{box-shadow:none}
 }
