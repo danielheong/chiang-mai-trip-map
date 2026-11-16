@@ -2,14 +2,14 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611170036';
-import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611170036';
-import * as sync from './sync.js?v=202611170036';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611170036';
-import * as spend from './expenses.js?v=202611170036';
-import * as ess from './essentials.js?v=202611170036';
-import * as bills from './bills.js?v=202611170036';
-import { routeFor, legText, totalText } from './routing.js?v=202611170036';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611170041';
+import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611170041';
+import * as sync from './sync.js?v=202611170041';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611170041';
+import * as spend from './expenses.js?v=202611170041';
+import * as ess from './essentials.js?v=202611170041';
+import * as bills from './bills.js?v=202611170041';
+import { routeFor, legText, totalText } from './routing.js?v=202611170041';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -1665,47 +1665,81 @@ function keepVisible(ll) {
   if (pt.y > limit) map.panBy([0, pt.y - limit + 40], { duration: .4 });
 }
 (() => {
-  // Drag by the handle, the sky banner or the title. The sheet follows the finger exactly; on release it
-  // carries on at the finger's speed to the next resting place (a flick is enough, no need to drag all the way).
-  let y0 = 0, ty0 = 0, ty = 0, maxTy = 0, moved = false, dragging = false, byGrab = false, trail = [];
-  const down = e => {
-    if (!isMobile() || e.target.closest('button:not(.grab),a,input,select')) return;
-    if (e.currentTarget.id === 'phead' && !e.target.closest('.ptitle')) return;
-    dragging = true; moved = false; byGrab = e.currentTarget.id === 'grab'; y0 = e.clientY;
+  // The whole sheet drags, the way a maps app's does: pull anywhere on it and it follows the finger, and on
+  // release it carries on at the finger's speed to the next resting place. The list only scrolls once the
+  // sheet is fully open; pulling down from the top of the list brings the sheet down again.
+  let y0 = 0, ty0 = 0, ty = 0, maxTy = 0, moved = false, dragging = false, justDragged = false, trail = [];
+  const begin = (y, t) => {
+    dragging = true; moved = false; y0 = y;
     ty0 = ty = new DOMMatrixReadOnly(getComputedStyle(panelEl).transform).m42;   // also catches it mid-slide
-    maxTy = panelEl.offsetHeight - 90; trail = [[e.timeStamp, e.clientY]];
+    maxTy = panelEl.offsetHeight - 90; trail = [[t, y]];
     clearTimeout(sheetT);
     panelEl.style.transition = 'none'; panelEl.style.transform = `translate3d(0,${ty}px,0)`; panelEl.style.paddingBottom = '0px';
-    e.currentTarget.setPointerCapture(e.pointerId); panelEl.classList.add('dragging');
+    panelEl.classList.add('dragging');
   };
-  const move = e => {
-    if (!dragging) return;
-    const dy = e.clientY - y0; if (Math.abs(dy) > 6) moved = true;
+  const drag = (y, t) => {
+    const dy = y - y0; if (Math.abs(dy) > 6) moved = true;
     ty = Math.max(0, Math.min(maxTy, ty0 + dy));
     panelEl.style.transform = `translate3d(0,${ty}px,0)`;
-    trail.push([e.timeStamp, e.clientY]);
-    while (trail.length > 2 && e.timeStamp - trail[0][0] > 90) trail.shift();
+    trail.push([t, y]);
+    while (trail.length > 2 && t - trail[0][0] > 90) trail.shift();
   };
-  const end = e => {
-    if (!dragging) return;
+  const finish = flung => {
     dragging = false; panelEl.classList.remove('dragging');
-    if (!moved) { if (byGrab) setSheet(SHEETS[(SHEETS.indexOf(panelEl.dataset.sheet) + 1) % 3]); else placeSheet(0); return; }
+    if (!moved) { placeSheet(0); return; }
+    justDragged = true; setTimeout(() => (justDragged = false), 0);
     const [t0, p0] = trail[0], [t1, p1] = trail[trail.length - 1];
-    const v = e.type === 'pointerup' && t1 > t0 ? (p1 - p0) / (t1 - t0) : 0;      // px per ms, down is positive
+    const v = flung && t1 > t0 ? (p1 - p0) / (t1 - t0) : 0;                      // px per ms, down is positive
     const full = panelEl.offsetHeight, vis = full - ty, stops = SHEETS.map(sheetPx);
     let to;
-    if (Math.abs(v) > 0.35) to = v < 0 ? stops.find(h => h > vis + 8) ?? stops[2] : [...stops].reverse().find(h => h < vis - 8) ?? stops[0];
+    if (Math.abs(v) > 0.3) to = v < 0 ? stops.find(h => h > vis + 8) ?? stops[2] : [...stops].reverse().find(h => h < vis - 8) ?? stops[0];
     else { const aim = vis - v * 200; to = stops.reduce((a, h) => Math.abs(h - aim) < Math.abs(a - aim) ? h : a); }
     // The ease starts about 4.25x faster than its average speed, so this length makes it leave at the finger's speed.
-    const dist = Math.abs(to - vis), ms = Math.abs(v) > 0.05 ? Math.max(200, Math.min(520, 4.25 * dist / Math.abs(v))) : 380;
+    const dist = Math.abs(to - vis), ms = Math.abs(v) > 0.05 ? Math.max(180, Math.min(460, 4.25 * dist / Math.abs(v))) : 340;
     setSheet(SHEETS[stops.indexOf(to)], ms);
   };
-  for (const el of [$('#grab'), document.querySelector('.panel .sky'), $('#phead')]) {
-    el.addEventListener('pointerdown', down);
-    el.addEventListener('pointermove', move);
-    el.addEventListener('pointerup', end);
-    el.addEventListener('pointercancel', end);
+  // Touch: decided on the first movement, because that is the only moment a phone lets a page take a gesture over.
+  const body = panelEl.querySelector('.pbody');
+  let tx = 0, tyStart = 0, mode = '';
+  panelEl.addEventListener('touchstart', e => {
+    mode = '';
+    if (!isMobile() || e.touches.length !== 1 || e.target.closest('textarea,select,input[type=range]')) { mode = 'native'; return; }
+    tx = e.touches[0].clientX; tyStart = e.touches[0].clientY;
+  }, { passive: true });
+  panelEl.addEventListener('touchmove', e => {
+    if (mode === 'native') return;
+    const t = e.touches[0], dx = t.clientX - tx, dy = t.clientY - tyStart;
+    if (!mode) {
+      if (!dx && !dy) return;
+      const inList = body.contains(e.target), open = panelEl.dataset.sheet === 'full';
+      mode = Math.abs(dx) > Math.abs(dy) ? 'native'                    // sideways: chip rows scroll
+        : inList && open && !(dy > 0 && body.scrollTop <= 0) ? 'native'  // open sheet: the list scrolls
+        : 'sheet';
+      if (mode === 'sheet') begin(tyStart, e.timeStamp);
+    }
+    if (mode !== 'sheet') return;
+    if (e.cancelable) e.preventDefault();
+    drag(t.clientY, e.timeStamp);
+  }, { passive: false });
+  const touchEnd = e => { if (mode === 'sheet' && dragging) finish(e.type === 'touchend'); mode = ''; };
+  panelEl.addEventListener('touchend', touchEnd);
+  panelEl.addEventListener('touchcancel', touchEnd);
+  // Mouse (a narrow desktop window): drag by the handle, the sky banner or the title.
+  const mdown = e => {
+    if (e.pointerType === 'touch' || !isMobile() || e.target.closest('button:not(.grab),a,input,select')) return;
+    if (e.currentTarget.id === 'phead' && !e.target.closest('.ptitle')) return;
+    begin(e.clientY, e.timeStamp); e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const mmove = e => { if (dragging && e.pointerType !== 'touch') drag(e.clientY, e.timeStamp); };
+  const mend = e => { if (dragging && e.pointerType !== 'touch') finish(e.type === 'pointerup'); };
+  for (const el of [$('#grab'), panelEl.querySelector('.sky'), $('#phead')]) {
+    el.addEventListener('pointerdown', mdown);
+    el.addEventListener('pointermove', mmove);
+    el.addEventListener('pointerup', mend);
+    el.addEventListener('pointercancel', mend);
   }
+  // A tap on the handle steps through the three positions.
+  $('#grab').addEventListener('click', () => { if (isMobile() && !justDragged) setSheet(SHEETS[(SHEETS.indexOf(panelEl.dataset.sheet) + 1) % 3]); });
   addEventListener('resize', () => placeSheet(0));
   // In peek, tapping the panel heading opens it.
   $('#phead').addEventListener('click', e => {

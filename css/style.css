@@ -943,7 +943,7 @@ svg .w{stroke:none;fill:var(--w,var(--c-other))}
   .panel::after{top:-16px;background:color-mix(in srgb,var(--ink) 26%,var(--card));-webkit-mask-position:-47px 0;mask-position:-47px 0}
   .grab{height:24px;padding:8px 0 4px}
   .pbody{contain:layout paint}
-  .sky{height:52px;margin:2px 14px 4px;touch-action:none;cursor:grab}
+  .sky{height:52px;margin:2px 14px 4px;cursor:grab}
   :root{--sheet-peek:142px}
   .mapwrap::after{box-shadow:none}
 }
@@ -951,5 +951,6 @@ svg .w{stroke:none;fill:var(--w,var(--c-other))}
 /* ---------- phone: the sheet slides (transform) instead of resizing; positions are set by placeSheet() in app.js ---------- */
 @media (max-width:860px){
   .panel{height:calc(100% - 8px - env(safe-area-inset-top,0px));transform:translate3d(0,calc(100% - 142px),0);transition:none;will-change:transform}
-  .ptitle{touch-action:none}
+  .panel{touch-action:pan-x pan-y}
+  .pbody{overscroll-behavior:none}
 }
