@@ -1,22 +1,22 @@
 // Watercolor basemap: a hand-built MapLibre style on OpenFreeMap's free vector tiles.
-// Sage land, pale water, cream roads, almost no labels — the pins and hand-lettered
+// Straw land, terracotta town, dark forest, clear blue water, cream roads, almost no labels — the pins and hand-lettered
 // area names carry the map. Tweak the PAINT colours to restyle everything.
 export const PAINT = {
-  land:      '#BCCB9E',
-  urban:     '#C6D2A8',
-  park:      '#A9BD88',
-  wood:      '#9FB47F',
-  farmland:  '#C9D3A6',
-  water:     '#C8DEE2',
-  waterLine: '#B7D3D9',
-  road:      '#F5F0DE',
-  roadMinor: '#EFEAD4',
-  path:      '#E9E3CB',
-  building:  '#B3C394',
-  runway:    '#D9D7C2',
-  label:     '#66705A',
-  labelWater:'#6F8F98',
-  halo:      '#F5F0DE',
+  land:      '#E6DDB4',
+  urban:     '#F0CDAE',
+  park:      '#A9CF86',
+  wood:      '#7DAE72',
+  farmland:  '#DBE19C',
+  water:     '#6DB7D3',
+  waterLine: '#5AA9C8',
+  road:      '#FFFDF4',
+  roadMinor: '#FBF4E0',
+  path:      '#F3E8CB',
+  building:  '#DFAF8F',
+  runway:    '#DDD6C2',
+  label:     '#5C5A48',
+  labelWater:'#2F7696',
+  halo:      '#FFFDF4',
 };
 
 // Night: indigo land, deep water and lamp-lit roads, like the city after dusk.

@@ -185,7 +185,7 @@ export const DIR = [...IDEAS.map(i => ({ ...i, alias: ALIASES[i.id] || '' })), .
 
 // Hand-lettered neighbourhood names painted onto the map (approximate centres).
 export const AREAS = [
-  { name: 'Old City',        lat: 18.7884, lng: 98.9868, size: 'l', min: 12 },
+  { name: 'Old City',        lat: 18.7853, lng: 98.9868, size: 'l', min: 12 },
   { name: 'Nimman',          lat: 18.7990, lng: 98.9655, size: 'm', min: 13 },
   { name: 'Ping River',      lat: 18.7930, lng: 99.0060, size: 'm', min: 13, water: true },
   { name: 'Night Bazaar',    lat: 18.7832, lng: 99.0000, size: 's', min: 15 },
@@ -204,4 +204,18 @@ export const DECOR = [
   { kind: 'tree', lat: 18.8110, lng: 98.9300 }, { kind: 'tree', lat: 18.7990, lng: 98.9250 },
   { kind: 'tree', lat: 18.8160, lng: 98.9420 }, { kind: 'hill', lat: 18.8020, lng: 98.9050 },
   { kind: 'tree', lat: 18.7930, lng: 98.9440 }, { kind: 'hill', lat: 18.8200, lng: 98.9120 },
+];
+
+// Painted landmarks: small drawings at fixed spots, shown while zoomed out (min..max zoom)
+// and dropped when one of your own pins sits on top of them. kind = key of LANDMARK_ART in app.js.
+export const LANDMARKS = [
+  { kind: 'chedi',    lat: 18.8048, lng: 98.9216, min: 11, max: 14.5 },   // Doi Suthep
+  { kind: 'wat',      lat: 18.7884, lng: 98.9819, min: 13, max: 15.5 },   // Wat Phra Singh
+  { kind: 'gate',     lat: 18.7877, lng: 98.9934, min: 13, max: 15.5 },   // Tha Phae Gate
+  { kind: 'lanterns', lat: 18.7851, lng: 99.0003, min: 13, max: 15.5 },   // Night Bazaar
+  { kind: 'elephant', lat: 18.9250, lng: 98.8650, min: 10, max: 13.5 },   // out in the Mae Rim hills
+  { kind: 'hill',     lat: 18.8300, lng: 98.8950, min: 11, max: 14.5 },
+  { kind: 'hill',     lat: 18.7800, lng: 98.9000, min: 11, max: 14.5 },
+  { kind: 'tree',     lat: 18.8180, lng: 98.9330, min: 12, max: 14.5 },
+  { kind: 'tree',     lat: 18.7930, lng: 98.9300, min: 12, max: 14.5 },
 ];

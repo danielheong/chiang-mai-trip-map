@@ -3,18 +3,21 @@
    The day look is pastel paper; the night look (data-theme="night" on <html>) is at the end of this file. */
 :root{
   color-scheme:light;
-  --paper:#F4EEDF; --paper-2:#EDE5D1; --card:#FBF7EE; --ink:#3F3A31; --muted:#7D7564; --line:#DDD3BC;
-  --sage:#A9BD88; --sage-dk:#5F7449; --water:#C8DEE2; --accent:#D98B7A; --accent-dk:#B86A59; --accent-ink:#3B211A;
-  --mustard:#E2B857; --danger:#B5483A; --ok:#6E8F52;
-  /* category washes (behind icons, chips, dots) */
-  --c-stay:#F1CFC6; --c-see:#F2E1A9; --c-eat:#F0C6B8; --c-cafe:#E7D5C3; --c-shop:#F2CFDF; --c-nature:#D3E0B9; --c-night:#D8DCF0; --c-other:#CFE3E5;
+  --paper:#FAF4E4; --paper-2:#F1E7CF; --card:#FFFCF3; --ink:#2E2A24; --muted:#655D4F; --line:#E2D6B9; --row:#FFFFFF;
+  --sage:#8FBF7A; --sage-dk:#3F6F45; --water:#6DB7D3; --accent:#EC7A5C; --accent-dk:#C2462B; --accent-ink:#3B160D;
+  --mustard:#E6AA2B; --danger:#B93A2A; --ok:#4F8A3F;
+  /* the four strong paints: temple gold, saffron, lantern red, deep teal */
+  --gold:#E0A526; --saffron:#E8792B; --red:#D2452F; --teal:#1F7A7A;
+  --map-land:#E6DDB4;
+  /* category colours (behind icons, chips, dots) */
+  --c-stay:#F6B3A4; --c-see:#F6D36A; --c-eat:#F7B27A; --c-cafe:#DDBC99; --c-shop:#F2ACC9; --c-nature:#B4D894; --c-night:#B3BAEE; --c-other:#A9D8DA;
   --f-title:"Amatic SC","Patrick Hand","Comic Sans MS",cursive;
   --f-hand:"Patrick Hand","Comic Sans MS","Chalkboard SE",cursive;
   --f-body:"Nunito",ui-rounded,"Segoe UI",system-ui,sans-serif;
   --r:22px;
   --shadow:0 1px 2px rgba(74,64,54,.08),0 10px 28px rgba(74,64,54,.14);
   --wobble:255px 18px 225px 18px/18px 225px 18px 255px;   /* hand-drawn pill */
-  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='2'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .4 0 0 0 0 .3 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' seed='2'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .4 0 0 0 0 .3 0 0 0 .3 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
   --wash:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='700'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.008' numOctaves='4' seed='7'/%3E%3CfeColorMatrix values='0 0 0 0 .42 0 0 0 0 .44 0 0 0 0 .3 0 0 0 1.1 -.35'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23w)'/%3E%3C/svg%3E");
   --sheet-peek:132px;
 }
@@ -234,13 +237,13 @@ button{cursor:pointer}
 .pinicon .bob{animation:drop .4s ease-out both}
 .ideaicon .ring{width:12px;height:12px;border-radius:50%;background:var(--card);border:2px solid currentColor;box-shadow:0 1px 2px rgba(74,64,54,.25)}
 .ideaicon .nm{position:absolute;left:16px;top:-5px;white-space:nowrap;font-family:var(--f-hand);font-size:15px;color:#4F5A43;pointer-events:none;
-  text-shadow:0 0 3px #C6D2A8,0 0 3px #C6D2A8,0 0 4px #C6D2A8}
+  text-shadow:0 0 3px #F6ECD0,0 0 3px #F6ECD0,0 0 4px #F6ECD0}
 .hide-idea-names .ideaicon .nm{display:none}
 .arealbl span{position:absolute;transform:translate(-50%,-50%);white-space:nowrap;pointer-events:none;font-family:var(--f-title);font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:#4E5D41;opacity:.72;line-height:1}
 .arealbl.l span{font-size:34px}
 .arealbl.m span{font-size:26px}
 .arealbl.s span{font-size:21px}
-.arealbl.water span{color:#4F7C86}
+.arealbl.water span{color:#2F7696}
 .decor svg{display:block;width:30px;height:30px;overflow:visible;opacity:.95}
 @keyframes drop{0%{transform:translateY(-16px) rotate(-6deg);opacity:0}60%{transform:translateY(2px);opacity:1}100%{transform:none}}
 @media (prefers-reduced-motion:reduce){.pinicon .bob{animation:none}.pinicon .art,.btn{transition:none}}
@@ -556,7 +559,7 @@ button{cursor:pointer}
            label   (Nunito caps)  section headers and field labels
            body    (Nunito)       notes, meta, numbers
    ===================================================================== */
-:root{ --muted:#6B6455; --label:#5F7449 }
+:root{ --muted:#655D4F; --label:#1F6F6F }
 .eyebrow,.group h3,.flabel,.sres h4,.qhead{font-family:var(--f-body);font-weight:700;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--label)}
 .group h3{margin:16px 6px 4px}
 .group h3 span{font-size:11.5px;letter-spacing:0;color:var(--muted);font-weight:600}
@@ -778,7 +781,7 @@ html.theming::view-transition-new(root){z-index:2}
 /* ---------- night look ---------- */
 :root[data-theme="night"]{
   color-scheme:dark;
-  --paper:#232838; --paper-2:#2F3548; --card:#2A3042; --ink:#EFE8D8; --muted:#ABA596; --line:#465068; --label:#B9D09B;
+  --paper:#232838; --paper-2:#2F3548; --card:#2A3042; --ink:#EFE8D8; --muted:#ABA596; --line:#465068; --label:#8FD3CC; --row:#323950; --teal:#7FD0C8; --red:#F08A75;
   --sage:#8FA872; --sage-dk:#B9D09B; --water:#3A5568; --accent:#DE8F7E; --accent-dk:#F2AE9B; --danger:#F0907F; --ok:#8DB36E;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px rgba(0,0,0,.42);
   --map-land:#2B3442;
@@ -840,4 +843,108 @@ html.theming::view-transition-new(root){z-index:2}
   .mapwrap .ovl{margin-top:env(safe-area-inset-top,0px)}
   .mapwrap::after{box-shadow:none}
   .panel[data-sheet="full"]{--sheet-h:calc(100% - 8px - env(safe-area-inset-top,0px))}
+}
+
+/* =====================================================================
+   Painted look (Nov 2026): stronger paints, a framed painted map, a sky
+   that follows Chiang Mai time, journal cards, hand-drawn icons and a
+   torn-paper sheet. To go back: git checkout before-new-look.
+   ===================================================================== */
+/* ---------- type ---------- */
+.phead h2{font-size:44px}
+.brand .wave{color:var(--red)}
+.empty h3{font-size:38px}
+
+/* ---------- map: frame, landmarks, compass, time-of-day tint ---------- */
+.mapwrap::after{box-shadow:inset 0 0 0 2px rgba(46,42,36,.6),inset 0 0 0 6px var(--card),inset 0 0 0 7.5px var(--mustard),inset 0 0 44px rgba(120,90,40,.16)}
+.tl{left:16px;top:16px;right:16px}
+.decor.landmark svg{width:42px;height:42px;opacity:.95;filter:drop-shadow(0 2px 1.5px rgba(74,64,54,.22))}
+.tint{position:absolute;inset:0;pointer-events:none;z-index:999;background:var(--tint);mix-blend-mode:multiply;transition:background-color 1.2s}
+.compass{left:16px;bottom:42px;width:54px;height:54px;pointer-events:none;opacity:.92}
+.compass svg{display:block;width:100%;height:100%;overflow:visible}
+.arealbl span{color:#5B4A32}
+
+/* ---------- sky banner: dawn, midday, golden hour, night (data-sky on <html>, set in app.js) ---------- */
+:root{--sky:#BFE3EE;--sun:#F5C842;--sy:0px;--m1:#2E8A86;--m2:#3F7A45;--nt:0;--tint:rgba(255,255,255,0)}
+:root[data-sky="dawn"]{--sky:#F8CFCB;--sun:#F29C86;--sy:15px;--m1:#8C9BB5;--m2:#6F8F80;--tint:rgba(246,170,175,.13)}
+:root[data-sky="gold"]{--sky:#F9C97A;--sun:#E8642B;--sy:13px;--m1:#8A5F3C;--m2:#3F5F3A;--tint:rgba(240,160,50,.17)}
+:root[data-sky="night"]{--sky:#232F52;--sun:#F4E9C1;--sy:0px;--m1:#16223F;--m2:#0E2A2C;--nt:1;--tint:rgba(255,255,255,0)}
+.sky{flex:none;height:60px;margin:12px 12px 0;border-radius:16px;overflow:hidden;border:1.5px solid color-mix(in srgb,var(--ink) 22%,transparent)}
+.sky svg{display:block;width:100%;height:100%}
+.sky .bg{fill:var(--sky);transition:fill 1.2s}
+.sky .sun{fill:var(--sun);transform:translateY(var(--sy));transition:transform 1.2s,fill 1.2s}
+.sky .m1{fill:var(--m1);transition:fill 1.2s}
+.sky .m2{fill:var(--m2);transition:fill 1.2s}
+.sky .nt{opacity:var(--nt);transition:opacity 1.2s}
+.panel:not([data-view="list"],[data-view="trip"]) .sky{display:none}
+@media (prefers-reduced-motion:reduce){.sky *,.tint{transition:none}}
+
+/* ---------- journal cards ---------- */
+.itemrow{background:var(--row);border:1.5px solid var(--line);border-radius:16px;margin:0 2px 7px}
+.item:hover,.item.sel{background:none}
+.itemrow:hover,.itemrow:has(.item.sel){border-color:color-mix(in srgb,var(--ink) 38%,transparent)}
+.item .dot{width:46px;height:46px}
+.item .km{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.itemrow.visited .item{opacity:.82}
+.itemrow.visited .item .nm > span:first-child{text-decoration:none}
+/* the day as a ticket, visited as a passport stamp */
+.tk{font-family:var(--f-hand);font-size:13.5px;font-weight:400;line-height:1.5;color:#fff;padding:0 10px;border-radius:4px;white-space:nowrap;
+  background:radial-gradient(circle at 0 50%,var(--row) 3px,transparent 3.6px),radial-gradient(circle at 100% 50%,var(--row) 3px,transparent 3.6px),var(--dc)}
+.stampv{display:grid;place-items:center;width:44px;height:44px;border:1.8px solid var(--teal);border-radius:50%;color:var(--teal);font-family:var(--f-hand);font-size:12px;font-weight:400;line-height:1;rotate:-12deg;
+  box-shadow:inset 0 0 0 2px var(--row),inset 0 0 0 3px var(--teal)}
+.group.day{border:1.5px solid color-mix(in srgb,var(--dc) 45%,transparent);border-left:7px solid var(--dc);border-radius:6px 18px 18px 6px;background:color-mix(in srgb,var(--dc) 8%,var(--card))}
+.group.day .dayhead{padding-bottom:6px;border-bottom:1.5px dashed color-mix(in srgb,var(--dc) 50%,transparent)}
+.dnum{font-size:30px}
+.nextcard{background:color-mix(in srgb,var(--c-see) 55%,var(--card));border-color:var(--mustard)}
+.tcard{border-color:color-mix(in srgb,var(--teal) 55%,transparent)}
+.tcard .eyebrow,.nextcard .eyebrow{color:var(--accent-dk)}
+/* strong paints stay off big surfaces: these keep a thinner wash */
+.xtotal,.tnote.good{background:color-mix(in srgb,var(--c-nature) 55%,#FFFCF3)}
+.xtotal.over{background:color-mix(in srgb,var(--c-eat) 55%,#FFFCF3)}
+.bills .xtotal.owe{background:color-mix(in srgb,var(--c-cafe) 55%,#FFFCF3)}
+.joinhint,.sortnote{background:color-mix(in srgb,var(--c-see) 50%,#FFFCF3)}
+:root[data-theme="night"] .nextcard{--paper:#F4EEDF;--paper-2:#EDE5D1;--card:#FBF7EE;--ink:#3F3A31;--muted:#6B6455;--line:#DDD3BC;--label:#5F7449;--sage-dk:#5F7449;--accent-dk:#B86A59;--ok:#6E8F52;color:var(--ink)}
+
+/* ---------- hand-drawn icons: a wobbly ink line (#ink filter in index.html) over a patch of paint ---------- */
+.pic svg,.sbox svg,.fitbtn svg,.locbtn svg,.trbtn svg,.filterbtn svg,.btn svg,.themeseg svg,.more svg,.qi svg,.trow .chev svg,.tab svg{filter:url(#ink)}
+.pic{position:relative;background:none;color:var(--ink)}
+.pi:hover .pic{background:none}
+.pic::before{content:"";position:absolute;inset:3px -2px -1px 4px;border-radius:46% 54% 50% 50%/55% 45% 55% 45%;background:var(--pw,var(--c-other));opacity:.85}
+.pic svg{position:relative}
+:is(.pi,.trow):nth-of-type(4n+2) .pic{--pw:var(--c-see)}
+:is(.pi,.trow):nth-of-type(4n+3) .pic{--pw:var(--c-eat)}
+:is(.pi,.trow):nth-of-type(4n) .pic{--pw:var(--c-shop)}
+:root[data-theme="night"] .pic::before{opacity:.32}
+.sbox svg{width:22px;height:22px;color:var(--ink);overflow:visible}
+svg .w{stroke:none;fill:var(--w,var(--c-other))}
+.tab svg{width:27px;height:27px;overflow:visible}
+.tab svg .w{opacity:.55;transition:opacity .18s}
+.tab[aria-current="page"] svg .w{opacity:1}
+.tab::before{display:none}
+.tab[aria-current="page"]{color:var(--ink)}
+.tab[aria-current="page"] span{text-decoration:underline wavy var(--red);text-underline-offset:3px}
+.tab[aria-current="page"] svg{color:var(--ink)}
+.tab.add i{background:var(--red);color:#FFFCF3;border-color:color-mix(in srgb,var(--ink) 60%,transparent)}
+:root[data-theme="night"] .tab svg .w{opacity:.3}
+:root[data-theme="night"] .tab[aria-current="page"] svg .w{opacity:.6}
+
+/* ---------- phone: torn-paper sheet ---------- */
+@media (max-width:860px){
+  .phead .ptitle h2{font-size:38px}
+  .tl{left:max(10px,env(safe-area-inset-left,0px));right:max(10px,env(safe-area-inset-right,0px));top:10px}
+  .compass{left:max(10px,env(safe-area-inset-left,0px));top:64px;bottom:auto;width:46px;height:46px}
+  #trLegend:not([hidden]) ~ .compass{display:none}
+  .panel{--torn:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 14' preserveAspectRatio='none'%3E%3Cpath d='M0 14V8L8 6L15 9L24 5L33 8L41 4L52 7L60 5L70 9L79 6L90 8L98 4L109 7L118 5L128 9L137 6L147 8L156 4L166 7L175 5L186 9L195 6L205 8L214 4L224 7L233 5L243 9L252 6L262 8L271 4L281 7L290 5L300 8V14Z'/%3E%3C/svg%3E");
+    border-radius:0;box-shadow:none;
+    -webkit-mask-image:var(--torn),linear-gradient(#000,#000);-webkit-mask-size:300px 14px,100% calc(100% - 13px);-webkit-mask-position:0 0,0 13px;-webkit-mask-repeat:repeat-x,no-repeat;
+    mask-image:var(--torn),linear-gradient(#000,#000);mask-size:300px 14px,100% calc(100% - 13px);mask-position:0 0,0 13px;mask-repeat:repeat-x,no-repeat}
+  /* a darker sheet peeks out behind the torn edge */
+  .panel::before{content:"";position:absolute;left:0;right:0;top:0;height:20px;background:color-mix(in srgb,var(--ink) 26%,var(--card));pointer-events:none}
+  .panel::after{content:"";position:absolute;left:0;right:0;top:3px;height:18px;background:var(--card);pointer-events:none;
+    -webkit-mask-image:var(--torn),linear-gradient(#000,#000);-webkit-mask-size:300px 14px,100% 100%;-webkit-mask-position:-47px 0,0 13px;-webkit-mask-repeat:repeat-x,no-repeat;
+    mask-image:var(--torn),linear-gradient(#000,#000);mask-size:300px 14px,100% 100%;mask-position:-47px 0,0 13px;mask-repeat:repeat-x,no-repeat}
+  .grab{position:relative;z-index:1;height:32px;padding:18px 0 4px}
+  .sky{height:52px;margin:4px 14px 6px}
+  .panel[data-sheet="peek"] .sky{display:none}
+  .mapwrap::after{box-shadow:none}
 }

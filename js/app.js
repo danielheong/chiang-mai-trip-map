@@ -2,14 +2,14 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, EXTRA_ICONS } from './data.js?v=202611120023';
-import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611120023';
-import * as sync from './sync.js?v=202611120023';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611120023';
-import * as spend from './expenses.js?v=202611120023';
-import * as ess from './essentials.js?v=202611120023';
-import * as bills from './bills.js?v=202611120023';
-import { routeFor, legText, totalText } from './routing.js?v=202611120023';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611162350';
+import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611162350';
+import * as sync from './sync.js?v=202611162350';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611162350';
+import * as spend from './expenses.js?v=202611162350';
+import * as ess from './essentials.js?v=202611162350';
+import * as bills from './bills.js?v=202611162350';
+import { routeFor, legText, totalText } from './routing.js?v=202611162350';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -224,6 +224,18 @@ const DECOR_ART = {
     <path d="M24 8c6 5 11 12 11 18a11 8 0 0 1-22 0c0-6 5-13 11-18z" fill="#8FAA72" stroke="#4A4036" stroke-width="1.2" stroke-linejoin="round"/>`,
   hill: `<path d="M4 40c5-10 9-15 13-15 3 0 5 3 7 3 3-7 6-13 9-13 5 0 9 12 11 25z" fill="#93AC74" stroke="#4A4036" stroke-width="1.2" stroke-linejoin="round"/>`,
 };
+const LK = 'stroke="#4A4036" stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"';
+const LANDMARK_ART = {
+  chedi: `<path d="M24 3v6" fill="none" ${LK}/><path d="M24 8c1.5 6 3 9 6 12H18c3-3 4.500-6 6-12z" fill="#F0C13C" ${LK}/>
+    <path d="M15 20h18l3 8H12z" fill="#E6AA2B" ${LK}/><path d="M9 28h30l2 8H7z" fill="#F0C13C" ${LK}/><path d="M5 36h38v5H5z" fill="#F6ECDA" ${LK}/>`,
+  gate: `<path d="M5 18h38v23H5z" fill="#C8674B" ${LK}/><path d="M5 18l2-5h5l1 5h5l1-5h10l1 5h5l1-5h5l2 5z" fill="#D97F60" ${LK}/>
+    <path d="M18 41V30a6 6 0 0 1 12 0v11z" fill="#F6ECDA" ${LK}/><path d="M9 25h6M33 25h6M9 32h5M34 32h5" fill="none" stroke="#4A4036" stroke-width=".9" opacity=".5" stroke-linecap="round"/>`,
+  wat: CATS.see.art,
+  lanterns: EXTRA_ICONS.lanterns.art,
+  elephant: EXTRA_ICONS.elephant.art,
+  hill: DECOR_ART.hill,
+  tree: DECOR_ART.tree,
+};
 function renderDecor() {
   decorLayer.clearLayers();
   const z = map.getZoom();
@@ -231,6 +243,16 @@ function renderDecor() {
     if (z < a.min || z > 17) continue;
     L.marker([a.lat, a.lng], { interactive: false, keyboard: false, zIndexOffset: -1000,
       icon: L.divIcon({ className: `arealbl ${a.size}${a.water ? ' water' : ''}`, iconSize: [0, 0], html: `<span>${esc(a.name)}</span>` }) }).addTo(decorLayer);
+  }
+  // Landmarks: painted drawings while zoomed out; skipped where one of your pins would cover them.
+  const taken = places.filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng)).map(p => map.latLngToLayerPoint([p.lat, p.lng]));
+  for (const m of LANDMARKS) {
+    if (z < m.min || z > m.max) continue;
+    const pt = map.latLngToLayerPoint([m.lat, m.lng]);
+    if (taken.some(t => Math.abs(t.x - pt.x) < 56 && Math.abs(t.y - pt.y) < 56)) continue;
+    L.marker([m.lat, m.lng], { interactive: false, keyboard: false, zIndexOffset: -950,
+      icon: L.divIcon({ className: 'decor landmark', iconSize: [42, 42], iconAnchor: [21, 34],
+        html: `<svg viewBox="0 0 48 48" aria-hidden="true"><g filter="url(#wc)">${LANDMARK_ART[m.kind]}</g></svg>` }) }).addTo(decorLayer);
   }
   if (z >= 15 && z <= 17) for (const d of DECOR) {
     L.marker([d.lat, d.lng], { interactive: false, keyboard: false, zIndexOffset: -900,
@@ -258,6 +280,7 @@ function ideaIcon(i) {
 }
 
 function renderMap() {
+  renderDecor();
   ideaLayer.clearLayers(); pinLayer.clearLayers();
   if (showIdeas && !tagFilter.size) {
     const saved = new Set(places.map(p => p.ideaId).filter(Boolean));
@@ -470,7 +493,7 @@ function goButtons(p) {
 }
 const tagChips = (tags, cls = 'tg') => (tags || []).map(t => `<span class="${cls}">${esc(t)}</span>`).join('');
 
-function renderPanel() { renderPanelInner(); decoratePanel(); }
+function renderPanel() { renderPanelInner(); $('#panel').dataset.view = view.kind; decoratePanel(); }
 function renderPanelInner() {
   const head = $('#phead'), body = $('#pbody');
   if (view.kind === 'trip') { renderTrip(head, body); return; }
@@ -863,11 +886,23 @@ function renderTrip(head, body) {
 const themeHTML = () => `<div class="themeseg" role="radiogroup" aria-label="Look of the app">${[['day', ICO.sun, 'Day'], ['night', ICO.moon, 'Night'], ['auto', ICO.auto, 'Auto']].map(([v, ic, t]) => `<button type="button" role="radio" aria-checked="${themePref === v}" data-theme-set="${v}">${ic}<span>${t}</span></button>`).join('')}</div>
   <p class="fine themehint">${themePref === 'auto' ? 'Auto follows this device’s light or dark setting.' : themePref === 'night' ? 'Night: the city after dusk, easier on the eyes in the evening.' : 'Day: the painted paper map.'}</p>`;
 
+// The sky banner and a light tint on the map follow Chiang Mai time (UTC+7). The night look always
+// gets the night sky; the day look never does, so a hand-picked Day or Night setting wins. ?sky=dawn|noon|gold tests one.
+const skyForce = new URLSearchParams(location.search).get('sky');
+function skyPhase() {
+  if (isNight()) return 'night';
+  if (['dawn', 'noon', 'gold'].includes(skyForce)) return skyForce;
+  const d = new Date(Date.now() + 7 * 3600e3), m = d.getUTCHours() * 60 + d.getUTCMinutes();
+  return m >= 330 && m < 480 ? 'dawn' : m >= 480 && m < 990 ? 'noon' : 'gold';
+}
+const applySky = () => { document.documentElement.dataset.sky = skyPhase(); };
+applySky(); setInterval(applySky, 5 * 60e3);
 function applyTheme() {
   const night = isNight();
   document.documentElement.dataset.theme = night ? 'night' : 'day';
-  $('#themeColor').content = night ? '#232838' : '#F4EEDF';
+  $('#themeColor').content = night ? '#232838' : '#FAF4E4';
   if (mapNight !== night) { mapNight = night; base.getMaplibreMap()?.setStyle(night ? nightStyle : watercolorStyle); }
+  applySky();
 }
 // Switch the look. The new one opens out in a circle from the button that was tapped.
 function setTheme(pref, from) {
@@ -955,7 +990,7 @@ function showTips(force = false) {
 }
 
 /* ---------- day plans ---------- */
-const DAY_COLORS = ['#D9776A', '#5F9AA8', '#D9A53A', '#6F9A55', '#A77DB8', '#D9739A', '#5E7FC4', '#A8805F'];
+const DAY_COLORS = ['#D2452F', '#1F7A7A', '#D9981A', '#4F8A3F', '#8E5BB5', '#D8457F', '#3F6FC9', '#A8683B'];
 const dayColor = d => DAY_COLORS[(d - 1) % DAY_COLORS.length];
 const tripDays = () => Math.max(trip.days, 0, ...places.map(p => p.day || 0));
 const stopsOf = d => places.filter(p => p.day === d).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
@@ -1198,9 +1233,9 @@ function itemHTML(p, dist, extra = '') {
   const st = openStatus(p);
   return `<div class="itemrow${p.visited ? ' visited' : ''}"><button type="button" class="item" data-open="${esc(p.id)}">
     ${dotFor(p)}
-    <span style="min-width:0"><span class="nm"><span>${esc(p.name)}</span>${p.fav ? '<svg class="heart" width="13" height="13" viewBox="0 0 24 24" aria-label="Must-go"><path d="M12 21 3.5 12.7A5.2 5.2 0 0 1 12 6a5.2 5.2 0 0 1 8.5 6.7z" fill="currentColor"/></svg>' : ''}${p.visited ? '<span class="vt" aria-label="Visited">✓</span>' : ''}</span>
+    <span style="min-width:0"><span class="nm"><span>${esc(p.name)}</span>${p.fav ? '<svg class="heart" width="13" height="13" viewBox="0 0 24 24" aria-label="Must-go"><path d="M12 21 3.5 12.7A5.2 5.2 0 0 1 12 6a5.2 5.2 0 0 1 8.5 6.7z" fill="currentColor"/></svg>' : ''}</span>
     ${p.note ? `<span class="nt">${esc(p.note)}</span>` : ''}${p.tags?.length || st || p.price ? `<span class="tgs">${st ? `<span class="os ${st.open === true ? 'is-open' : st.open === false ? 'is-closed' : ''}">${st.open === true ? 'Open' : st.open === false ? 'Closed' : 'Hours'}</span>` : ''}${p.price ? `<span class="pr">${PRICE[p.price]}</span>` : ''}${tagChips(p.tags)}</span>` : ''}</span>
-    <span class="km">${dist}${p.exact ? '' : '<span class="approx" title="Approximate spot. Open it and paste exact coordinates.">≈ approx</span>'}</span></button>${extra}<button type="button" class="more" data-more="${esc(p.id)}" aria-label="More actions for ${esc(p.name)}" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button></div>`;
+    <span class="km">${dist ? `<span>${dist}</span>` : ''}${p.day && listMode !== 'days' && listMode !== 'today' ? `<span class="tk" style="--dc:${dayColor(p.day)}">Day ${p.day}</span>` : ''}${p.visited ? '<span class="stampv" aria-label="Visited">Visited</span>' : ''}${p.exact ? '' : '<span class="approx" title="Approximate spot. Open it and paste exact coordinates.">≈ approx</span>'}</span></button>${extra}<button type="button" class="more" data-more="${esc(p.id)}" aria-label="More actions for ${esc(p.name)}" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button></div>`;
 }
 function listBody() {
   const shown = places.filter(p => filters.has(p.cat) && hasTagMatch(p) && !(hideVisited && p.visited));
