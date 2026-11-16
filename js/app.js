@@ -2,14 +2,14 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611170014';
-import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611170014';
-import * as sync from './sync.js?v=202611170014';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611170014';
-import * as spend from './expenses.js?v=202611170014';
-import * as ess from './essentials.js?v=202611170014';
-import * as bills from './bills.js?v=202611170014';
-import { routeFor, legText, totalText } from './routing.js?v=202611170014';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611170036';
+import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611170036';
+import * as sync from './sync.js?v=202611170036';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611170036';
+import * as spend from './expenses.js?v=202611170036';
+import * as ess from './essentials.js?v=202611170036';
+import * as bills from './bills.js?v=202611170036';
+import { routeFor, legText, totalText } from './routing.js?v=202611170036';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -1625,13 +1625,30 @@ async function applyLoc() {
 /* ---------- phone bottom sheet ---------- */
 const panelEl = $('#panel');
 const SHEETS = ['peek', 'half', 'full'];
+// How much of the sheet shows in each position.
 function sheetPx(state) {
   const h = document.querySelector('.app').clientHeight;
-  return state === 'full' ? h - 8 : state === 'half' ? h * 0.52 : 142;
+  return state === 'full' ? (isMobile() && panelEl.offsetHeight) || h - 8 : state === 'half' ? Math.round(h * 0.52) : 142;
 }
-function setSheet(state) {
+// The sheet is always full height and slides with a transform, which a phone can animate without
+// redrawing the list. The part pushed below the screen is handed back as bottom padding once the
+// sheet settles, so the list still scrolls to its last row.
+let sheetT = 0;
+function placeSheet(ms = 420) {
+  clearTimeout(sheetT);
+  if (!isMobile()) { panelEl.style.transform = panelEl.style.transition = panelEl.style.paddingBottom = ''; return; }
+  if (calmMotion()) ms = 0;
+  const ty = Math.max(0, panelEl.offsetHeight - sheetPx(panelEl.dataset.sheet));
+  const pad = parseFloat(panelEl.style.paddingBottom) || 0;
+  panelEl.style.paddingBottom = Math.min(pad, ty) + 'px';
+  panelEl.style.transition = ms ? `transform ${Math.round(ms)}ms cubic-bezier(.2,.85,.25,1)` : 'none';
+  panelEl.style.transform = `translate3d(0,${ty}px,0)`;
+  sheetT = setTimeout(() => { panelEl.style.paddingBottom = ty + 'px'; }, ms + 30);
+}
+function setSheet(state, ms) {
   if (!isMobile()) return;
   panelEl.dataset.sheet = state;
+  placeSheet(ms);
   if (state !== 'peek') return;
   panelEl.querySelector('.pbody').scrollTop = 0;
 }
@@ -1648,42 +1665,53 @@ function keepVisible(ll) {
   if (pt.y > limit) map.panBy([0, pt.y - limit + 40], { duration: .4 });
 }
 (() => {
-  // The handle and the sky banner both drag the sheet. Moves are applied once per frame and the
-  // limits are measured once at touch-down, so dragging never forces extra layout work.
-  let y0 = 0, h0 = 0, max = 0, want = 0, raf = 0, moved = false, dragging = false;
-  const paint = () => { raf = 0; if (dragging) panelEl.style.height = want + 'px'; };
+  // Drag by the handle, the sky banner or the title. The sheet follows the finger exactly; on release it
+  // carries on at the finger's speed to the next resting place (a flick is enough, no need to drag all the way).
+  let y0 = 0, ty0 = 0, ty = 0, maxTy = 0, moved = false, dragging = false, byGrab = false, trail = [];
   const down = e => {
-    if (!isMobile()) return;
-    dragging = true; moved = false; y0 = e.clientY; h0 = want = panelEl.offsetHeight;
-    max = document.querySelector('.app').clientHeight - 8;
+    if (!isMobile() || e.target.closest('button:not(.grab),a,input,select')) return;
+    if (e.currentTarget.id === 'phead' && !e.target.closest('.ptitle')) return;
+    dragging = true; moved = false; byGrab = e.currentTarget.id === 'grab'; y0 = e.clientY;
+    ty0 = ty = new DOMMatrixReadOnly(getComputedStyle(panelEl).transform).m42;   // also catches it mid-slide
+    maxTy = panelEl.offsetHeight - 90; trail = [[e.timeStamp, e.clientY]];
+    clearTimeout(sheetT);
+    panelEl.style.transition = 'none'; panelEl.style.transform = `translate3d(0,${ty}px,0)`; panelEl.style.paddingBottom = '0px';
     e.currentTarget.setPointerCapture(e.pointerId); panelEl.classList.add('dragging');
   };
   const move = e => {
     if (!dragging) return;
     const dy = e.clientY - y0; if (Math.abs(dy) > 6) moved = true;
-    want = Math.max(90, Math.min(max, h0 - dy));
-    if (!raf) raf = requestAnimationFrame(paint);
+    ty = Math.max(0, Math.min(maxTy, ty0 + dy));
+    panelEl.style.transform = `translate3d(0,${ty}px,0)`;
+    trail.push([e.timeStamp, e.clientY]);
+    while (trail.length > 2 && e.timeStamp - trail[0][0] > 90) trail.shift();
   };
   const end = e => {
     if (!dragging) return;
     dragging = false; panelEl.classList.remove('dragging');
-    if (raf) { cancelAnimationFrame(raf); raf = 0; }
-    const h = moved ? want : panelEl.offsetHeight; panelEl.style.height = '';
-    if (!moved) { const i = SHEETS.indexOf(panelEl.dataset.sheet); setSheet(SHEETS[(i + 1) % 3]); return; }
-    const r = h / (max + 8), up = e.clientY < y0;
-    setSheet(r > 0.72 ? 'full' : r > 0.3 ? (up && r > 0.6 ? 'full' : 'half') : (up && r > 0.22 ? 'half' : 'peek'));
+    if (!moved) { if (byGrab) setSheet(SHEETS[(SHEETS.indexOf(panelEl.dataset.sheet) + 1) % 3]); else placeSheet(0); return; }
+    const [t0, p0] = trail[0], [t1, p1] = trail[trail.length - 1];
+    const v = e.type === 'pointerup' && t1 > t0 ? (p1 - p0) / (t1 - t0) : 0;      // px per ms, down is positive
+    const full = panelEl.offsetHeight, vis = full - ty, stops = SHEETS.map(sheetPx);
+    let to;
+    if (Math.abs(v) > 0.35) to = v < 0 ? stops.find(h => h > vis + 8) ?? stops[2] : [...stops].reverse().find(h => h < vis - 8) ?? stops[0];
+    else { const aim = vis - v * 200; to = stops.reduce((a, h) => Math.abs(h - aim) < Math.abs(a - aim) ? h : a); }
+    // The ease starts about 4.25x faster than its average speed, so this length makes it leave at the finger's speed.
+    const dist = Math.abs(to - vis), ms = Math.abs(v) > 0.05 ? Math.max(200, Math.min(520, 4.25 * dist / Math.abs(v))) : 380;
+    setSheet(SHEETS[stops.indexOf(to)], ms);
   };
-  for (const el of [$('#grab'), document.querySelector('.panel .sky')]) {
+  for (const el of [$('#grab'), document.querySelector('.panel .sky'), $('#phead')]) {
     el.addEventListener('pointerdown', down);
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', end);
   }
+  addEventListener('resize', () => placeSheet(0));
   // In peek, tapping the panel heading opens it.
   $('#phead').addEventListener('click', e => {
     if (isMobile() && panelEl.dataset.sheet === 'peek' && !e.target.closest('button,a,input')) setSheet('half');
   });
-  panelEl.dataset.sheet = 'peek';
+  panelEl.dataset.sheet = 'peek'; placeSheet(0);
 })();
 map.on('dragstart', () => { if (isMobile() && panelEl.dataset.sheet === 'full') setSheet('half'); });
 
