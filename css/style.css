@@ -856,7 +856,7 @@ html.theming::view-transition-new(root){z-index:2}
 .empty h3{font-size:38px}
 
 /* ---------- map: frame, landmarks, compass, time-of-day tint ---------- */
-.mapwrap::after{box-shadow:inset 0 0 0 2px rgba(46,42,36,.6),inset 0 0 0 6px var(--card),inset 0 0 0 7.5px var(--mustard),inset 0 0 44px rgba(120,90,40,.16)}
+.mapwrap::after{box-shadow:inset 0 0 0 1.5px rgba(46,42,36,.25),inset 0 0 44px rgba(120,90,40,.12)}   /* no gold border (the user preferred the map without it) */
 .tl{left:16px;top:16px;right:16px}
 .decor.landmark svg{width:42px;height:42px;opacity:.95;filter:drop-shadow(0 2px 1.5px rgba(74,64,54,.22))}
 .tint{position:absolute;inset:0;pointer-events:none;z-index:999;background:var(--tint);transition:background-color 1.2s}
@@ -960,7 +960,5 @@ svg .w{stroke:none;fill:var(--w,var(--c-other))}
 @media (max-width:860px){.panel{position:absolute}}
 .pslide{position:absolute;left:0;right:0;overflow:hidden;pointer-events:none;z-index:5}
 
-/* Night keeps the painted map's ink-and-gold frame (desktop), with a deeper vignette. */
-:root[data-theme="night"] .mapwrap::after{box-shadow:inset 0 0 0 2px rgba(0,0,0,.6),inset 0 0 0 6px var(--card),inset 0 0 0 7.5px var(--mustard),inset 0 0 60px rgba(10,14,30,.5)}
 :root[data-theme="night"] .arealbl span{color:#F1E6C8;text-shadow:0 0 3px #1D2538,0 0 8px #1D2538}
 :root[data-theme="night"] .arealbl.water span{color:#BFDDF2}

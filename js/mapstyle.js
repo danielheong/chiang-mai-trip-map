@@ -19,21 +19,23 @@ export const PAINT = {
   halo:      '#FFFDF4',
 };
 
-// Night: the same painting after dusk, with the same contrasts as the day map: indigo land, a warm lamp-lit
-// town (the terracotta at night), deep green forest, a moonlit river lighter than the land, and gold roads.
+// Night: the same painting after dusk, kept calm. Town, land and countryside sit close together so the small
+// patches don't flicker; forest and the moonlit river stay readable; main roads are lamp gold, the middle roads a
+// dimmer gold and the small streets barely show, so the pins stay the brightest thing on the map.
 export const PAINT_NIGHT = {
-  land:      '#252E45',
-  urban:     '#47394A',
-  park:      '#2E5B48',
-  wood:      '#1F4838',
-  farmland:  '#33463F',
-  water:     '#3A78A0',
-  waterLine: '#4386AE',
-  road:      '#D2B577',
-  roadMinor: '#8C7C5C',
-  path:      '#6E634F',
-  building:  '#5B4558',
-  runway:    '#3B4560',
+  land:      '#262F45',
+  urban:     '#34324A',
+  park:      '#2A4A44',
+  wood:      '#22423B',
+  farmland:  '#2A3843',
+  water:     '#336C96',
+  waterLine: '#3A78A2',
+  road:      '#BFA36C',
+  roadMid:   '#7E7160',
+  roadMinor: '#45465A',
+  path:      '#45445A',
+  building:  '#3F3A52',
+  runway:    '#343D57',
   label:     '#D5DAE3',
   labelWater:'#A8CBE6',
   halo:      '#1D2538',
@@ -89,7 +91,7 @@ const build = P => ({
     { id: 'road-mid', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 9,
       filter: ['all', notTunnel, line(['secondary', 'tertiary'])],
       layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': P.road, 'line-width': w([9, 0.6, 13, 2.5, 16, 7, 20, 26]) } },
+      paint: { 'line-color': P.roadMid || P.road, 'line-width': w([9, 0.6, 13, 2.5, 16, 7, 20, 26]) } },
     { id: 'road-major', type: 'line', source: 'omt', 'source-layer': 'transportation', minzoom: 5,
       filter: ['all', notTunnel, line(['primary', 'trunk', 'motorway'])],
       layout: { 'line-cap': 'round', 'line-join': 'round' },

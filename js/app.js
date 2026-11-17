@@ -2,14 +2,14 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611171135';
-import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611171135';
-import * as sync from './sync.js?v=202611171135';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611171135';
-import * as spend from './expenses.js?v=202611171135';
-import * as ess from './essentials.js?v=202611171135';
-import * as bills from './bills.js?v=202611171135';
-import { routeFor, legText, totalText } from './routing.js?v=202611171135';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611171143';
+import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611171143';
+import * as sync from './sync.js?v=202611171143';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611171143';
+import * as spend from './expenses.js?v=202611171143';
+import * as ess from './essentials.js?v=202611171143';
+import * as bills from './bills.js?v=202611171143';
+import { routeFor, legText, totalText } from './routing.js?v=202611171143';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
