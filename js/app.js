@@ -2,14 +2,14 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611170041';
-import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611170041';
-import * as sync from './sync.js?v=202611170041';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611170041';
-import * as spend from './expenses.js?v=202611170041';
-import * as ess from './essentials.js?v=202611170041';
-import * as bills from './bills.js?v=202611170041';
-import { routeFor, legText, totalText } from './routing.js?v=202611170041';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611171018';
+import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611171018';
+import * as sync from './sync.js?v=202611171018';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611171018';
+import * as spend from './expenses.js?v=202611171018';
+import * as ess from './essentials.js?v=202611171018';
+import * as bills from './bills.js?v=202611171018';
+import { routeFor, legText, totalText } from './routing.js?v=202611171018';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -493,7 +493,95 @@ function goButtons(p) {
 }
 const tagChips = (tags, cls = 'tg') => (tags || []).map(t => `<span class="${cls}">${esc(t)}</span>`).join('');
 
-function renderPanel() { renderPanelInner(); $('#panel').dataset.view = view.kind; decoratePanel(); }
+function renderPanel() {
+  const from = shownScreen, to = screenNow(), move = rendering ? null : slideMove(from, to);
+  const skyMoves = !!(move && from.sky !== to.sky);   // the banner slides only when it comes or goes
+  const old = move && move.dir ? snapPanel(skyMoves && from.sky) : null;
+  if (move && from) scrollMemory[from.key] = $('#pbody').scrollTop;
+  rendering++;
+  try { renderPanelInner(); $('#panel').dataset.view = view.kind; decoratePanel(); } finally { rendering--; }
+  if (rendering) return;
+  shownScreen = screenNow();
+  if (move) { $('#pbody').scrollTop = move.back ? scrollMemory[shownScreen.key] || 0 : 0; slidePanel(move, old, skyMoves && shownScreen.sky); }
+}
+
+/* ---------- sliding between screens ----------
+   A real change of screen (another view, list mode or tab) slides the old panel content out one side and the
+   new one in from the other, like pages side by side. Re-renders of the same screen (filters, sync, routes)
+   don't move. Direction: tab order on phones, then deeper (forward) / back, then the order of list modes. */
+let shownScreen = null, rendering = 0, slideStage = null;
+const scrollMemory = {};
+const SLIDE_TABS = ['map', 'plan', 'money', 'trip'];
+const SLIDE_MODES = ['today', 'type', 'near', 'days'];
+const SLIDE_SIDE = ['bills', 'spend'];
+function slideDepth(kind) {
+  if (kind === 'list' || kind === 'trip') return 0;
+  if (kind === 'bills' || kind === 'spend') return useTabs() ? 0 : 1;
+  return kind === 'edit' ? 2 : 1;
+}
+function screenNow() {
+  const mode = view.kind === 'list' ? listMode : '';
+  return { kind: view.kind, mode, id: view.id || '', tab: currentTab(), key: view.kind + ':' + mode, sky: view.kind === 'list' || view.kind === 'trip' };
+}
+function slideMove(a, b) {
+  if (!a) return null;
+  if (useTabs() && a.tab !== b.tab) return { dir: SLIDE_TABS.indexOf(b.tab) > SLIDE_TABS.indexOf(a.tab) ? 1 : -1 };
+  const da = slideDepth(a.kind), db = slideDepth(b.kind);
+  if (da !== db) return { dir: db > da ? 1 : -1, back: db < da };
+  if (a.kind !== b.kind) return { dir: SLIDE_SIDE.indexOf(b.kind) < SLIDE_SIDE.indexOf(a.kind) ? -1 : 1 };
+  if (a.mode !== b.mode) return { dir: SLIDE_MODES.indexOf(b.mode) > SLIDE_MODES.indexOf(a.mode) ? 1 : -1 };
+  if (a.id !== b.id) return { dir: 0 };   // another place's card: a soft fade, no slide
+  return null;
+}
+// A still copy of what the panel shows now (sky banner only if it is about to change), laid over the panel.
+function snapPanel(withSky) {
+  endSlide();
+  if (calmMotion()) return null;
+  const panel = $('#panel'), pr = panel.getBoundingClientRect();
+  if (!pr.width) return null;
+  const sky = panel.querySelector('.sky');
+  const parts = [withSky && sky.offsetHeight ? sky : null, $('#phead'), $('#pbody')].filter(Boolean);
+  const top = parts[0].getBoundingClientRect().top, bottom = $('#pbody').getBoundingClientRect().bottom;
+  const stage = document.createElement('div');
+  stage.className = 'pslide'; stage.setAttribute('aria-hidden', 'true'); stage.inert = true;
+  stage.style.top = (top - pr.top - panel.clientTop) + 'px'; stage.style.height = Math.max(0, bottom - top) + 'px';
+  const scrolls = [];
+  for (const el of parts) {
+    const r = el.getBoundingClientRect(), c = el.cloneNode(true);
+    c.removeAttribute('id'); c.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+    Object.assign(c.style, { display: getComputedStyle(el).display, position: 'absolute', margin: '0', boxSizing: 'border-box', left: (r.left - pr.left - panel.clientLeft) + 'px', top: (r.top - top) + 'px', width: r.width + 'px', height: r.height + 'px' });
+    stage.appendChild(c);
+    if (el.scrollTop) scrolls.push([c, el.scrollTop]);
+  }
+  panel.appendChild(stage);
+  scrolls.forEach(([c, y]) => { c.scrollTop = y; });
+  return { stage };
+}
+function slidePanel(move, old, withSky) {
+  if (calmMotion()) { old?.stage.remove(); return; }
+  const panel = $('#panel'), sky = panel.querySelector('.sky');
+  const els = [$('#phead'), $('#pbody')];
+  if (withSky && sky.offsetHeight) els.unshift(sky);
+  const ease = 'cubic-bezier(.25,.8,.25,1)';
+  if (!move.dir || !old) {
+    els.forEach(el => el.animate([{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: 'ease-out' }));
+    old?.stage.remove();
+    return;
+  }
+  const w = panel.clientWidth, d = move.dir, ms = 340;
+  slideStage = old.stage;
+  const out = old.stage.animate([{ transform: 'none', opacity: 1 }, { transform: `translateX(${-d * w}px)`, opacity: .35 }], { duration: ms, easing: ease });
+  out.onfinish = out.oncancel = () => { old.stage.remove(); if (slideStage === old.stage) slideStage = null; };
+  const ins = els.map(el => el.animate([{ transform: `translateX(${d * w}px)`, opacity: .35 }, { transform: 'none', opacity: 1 }], { duration: ms, easing: ease }));
+  // Safety net if animation frames stall (hidden tab, busy phone): never leave the copy up or the content off to the side.
+  setTimeout(() => { if (old.stage.isConnected) { old.stage.remove(); if (slideStage === old.stage) slideStage = null; } ins.forEach(a => { if (a.playState === 'running') a.finish(); }); }, ms + 400);
+}
+// A new screen change mid-slide: drop the old copy and let the current content land at once.
+function endSlide() {
+  if (slideStage) { slideStage.getAnimations().forEach(a => a.cancel()); slideStage.remove(); slideStage = null; }
+  const panel = $('#panel');
+  [panel.querySelector('.sky'), $('#phead'), $('#pbody')].forEach(el => el.getAnimations().forEach(a => a.finish()));
+}
 function renderPanelInner() {
   const head = $('#phead'), body = $('#pbody');
   if (view.kind === 'trip') { renderTrip(head, body); return; }

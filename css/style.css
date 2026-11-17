@@ -954,3 +954,8 @@ svg .w{stroke:none;fill:var(--w,var(--c-other))}
   .panel{touch-action:pan-x pan-y}
   .pbody{overscroll-behavior:none}
 }
+
+/* ---------- sliding between screens: the still copy of the old panel content (slidePanel in app.js) ---------- */
+.panel{position:relative}
+@media (max-width:860px){.panel{position:absolute}}
+.pslide{position:absolute;left:0;right:0;overflow:hidden;pointer-events:none;z-index:5}
