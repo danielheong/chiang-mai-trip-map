@@ -2,14 +2,14 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611171018';
-import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611171018';
-import * as sync from './sync.js?v=202611171018';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611171018';
-import * as spend from './expenses.js?v=202611171018';
-import * as ess from './essentials.js?v=202611171018';
-import * as bills from './bills.js?v=202611171018';
-import { routeFor, legText, totalText } from './routing.js?v=202611171018';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611171031';
+import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611171031';
+import * as sync from './sync.js?v=202611171031';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611171031';
+import * as spend from './expenses.js?v=202611171031';
+import * as ess from './essentials.js?v=202611171031';
+import * as bills from './bills.js?v=202611171031';
+import { routeFor, legText, totalText } from './routing.js?v=202611171031';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -549,6 +549,7 @@ function snapPanel(withSky) {
   for (const el of parts) {
     const r = el.getBoundingClientRect(), c = el.cloneNode(true);
     c.removeAttribute('id'); c.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+    c.style.transform = '';   // mid-swipe the content is shifted; the copy is placed where it shows instead
     Object.assign(c.style, { display: getComputedStyle(el).display, position: 'absolute', margin: '0', boxSizing: 'border-box', left: (r.left - pr.left - panel.clientLeft) + 'px', top: (r.top - top) + 'px', width: r.width + 'px', height: r.height + 'px' });
     stage.appendChild(c);
     if (el.scrollTop) scrolls.push([c, el.scrollTop]);
@@ -575,6 +576,58 @@ function slidePanel(move, old, withSky) {
   const ins = els.map(el => el.animate([{ transform: `translateX(${d * w}px)`, opacity: .35 }, { transform: 'none', opacity: 1 }], { duration: ms, easing: ease }));
   // Safety net if animation frames stall (hidden tab, busy phone): never leave the copy up or the content off to the side.
   setTimeout(() => { if (old.stage.isConnected) { old.stage.remove(); if (slideStage === old.stage) slideStage = null; } ins.forEach(a => { if (a.playState === 'running') a.finish(); }); }, ms + 400);
+}
+/* ---------- phone: swipe the sheet sideways to change tab; on an inner screen, swipe right to go back ----------
+   The content follows the finger; on release it either goes (far enough, or flicked) and the normal slide
+   carries on from where the finger left it, or springs back. Screens with unsaved typing don't swipe. */
+let swipe = null;
+function swipeTargets() {
+  if (!useTabs() || mode !== 'browse' || view.edit || ['edit', 'import', 'daypick'].includes(view.kind)) return null;
+  if (slideDepth(view.kind) > 0) return $('#phead [data-back], #phead [data-back-days]') ? { prev: 'back', next: null } : null;
+  const i = SLIDE_TABS.indexOf(currentTab());
+  return i < 0 ? null : { prev: SLIDE_TABS[i - 1] || null, next: SLIDE_TABS[i + 1] || null };
+}
+// Not on form fields, and not inside a row that scrolls sideways itself (filter chips, icon pickers).
+function canSwipe(el) {
+  if (el.closest('input,textarea,select,[contenteditable]')) return false;
+  for (; el && el !== panelEl; el = el.parentElement) {
+    if (el.scrollWidth > el.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(el).overflowX)) return false;
+  }
+  return true;
+}
+function swipeStart(x, t) {
+  const tg = swipeTargets();
+  if (!tg) return false;
+  endSlide();
+  swipe = { x0: x, dx: 0, tg, trail: [[t, x]], w: panelEl.clientWidth, els: [$('#phead'), $('#pbody')] };
+  return true;
+}
+function swipeMove(x, t) {
+  const s = swipe; if (!s) return;
+  const raw = x - s.x0, to = raw < 0 ? s.tg.next : s.tg.prev;
+  s.dx = to ? raw : raw * .2;                     // nothing that way: just a little give
+  s.trail.push([t, x]);
+  while (s.trail.length > 2 && t - s.trail[0][0] > 90) s.trail.shift();
+  const f = Math.min(1, Math.abs(s.dx) / s.w);
+  s.els.forEach(el => { el.style.transform = `translate3d(${s.dx}px,0,0)`; el.style.opacity = 1 - f * .6; });
+}
+function swipeEnd(released) {
+  const s = swipe; swipe = null; if (!s) return;
+  const [t0, x0] = s.trail[0], [t1, x1] = s.trail[s.trail.length - 1];
+  const v = released && t1 > t0 ? (x1 - x0) / (t1 - t0) : 0;   // px per ms
+  const to = s.dx < 0 ? s.tg.next : s.tg.prev;
+  const go = released && to && (Math.abs(s.dx) > s.w * .3 || (Math.abs(s.dx) > 30 && Math.abs(v) > .35 && Math.sign(v) === Math.sign(s.dx)));
+  if (go) {
+    // The old screen is copied where the finger left it (snapPanel), then the real content is put straight.
+    if (to === 'back') $('#phead [data-back], #phead [data-back-days]').click(); else goTab(to);
+    s.els.forEach(el => { el.style.transform = el.style.opacity = ''; });
+    return;
+  }
+  s.els.forEach(el => {
+    const from = { transform: el.style.transform, opacity: el.style.opacity };
+    el.style.transform = el.style.opacity = '';
+    if (!calmMotion()) el.animate([from, { transform: 'none', opacity: 1 }], { duration: 240, easing: 'cubic-bezier(.25,.8,.25,1)' });
+  });
 }
 // A new screen change mid-slide: drop the old copy and let the current content land at once.
 function endSlide() {
@@ -1800,16 +1853,17 @@ function keepVisible(ll) {
     if (!mode) {
       if (!dx && !dy) return;
       const inList = body.contains(e.target), open = panelEl.dataset.sheet === 'full';
-      mode = Math.abs(dx) > Math.abs(dy) ? 'native'                    // sideways: chip rows scroll
+      mode = Math.abs(dx) > Math.abs(dy) ? (canSwipe(e.target) && swipeStart(tx, e.timeStamp) ? 'swipe' : 'native')  // sideways: change tab, unless a chip row scrolls
         : inList && open && !(dy > 0 && body.scrollTop <= 0) ? 'native'  // open sheet: the list scrolls
         : 'sheet';
       if (mode === 'sheet') begin(tyStart, e.timeStamp);
     }
+    if (mode === 'swipe') { if (e.cancelable) e.preventDefault(); swipeMove(t.clientX, e.timeStamp); return; }
     if (mode !== 'sheet') return;
     if (e.cancelable) e.preventDefault();
     drag(t.clientY, e.timeStamp);
   }, { passive: false });
-  const touchEnd = e => { if (mode === 'sheet' && dragging) finish(e.type === 'touchend'); mode = ''; };
+  const touchEnd = e => { if (mode === 'sheet' && dragging) finish(e.type === 'touchend'); if (mode === 'swipe') swipeEnd(e.type === 'touchend'); mode = ''; };
   panelEl.addEventListener('touchend', touchEnd);
   panelEl.addEventListener('touchcancel', touchEnd);
   // Mouse (a narrow desktop window): drag by the handle, the sky banner or the title.
