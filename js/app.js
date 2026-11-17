@@ -2,14 +2,14 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611171031';
-import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611171031';
-import * as sync from './sync.js?v=202611171031';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611171031';
-import * as spend from './expenses.js?v=202611171031';
-import * as ess from './essentials.js?v=202611171031';
-import * as bills from './bills.js?v=202611171031';
-import { routeFor, legText, totalText } from './routing.js?v=202611171031';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611171059';
+import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611171059';
+import * as sync from './sync.js?v=202611171059';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611171059';
+import * as spend from './expenses.js?v=202611171059';
+import * as ess from './essentials.js?v=202611171059';
+import * as bills from './bills.js?v=202611171059';
+import { routeFor, legText, totalText } from './routing.js?v=202611171059';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -280,6 +280,7 @@ function ideaIcon(i) {
 }
 
 function renderMap() {
+  clearTimeout(navMapT); mapDrawn = { dayFocus, kind: view.kind };
   renderDecor();
   ideaLayer.clearLayers(); pinLayer.clearLayers();
   if (showIdeas && !tagFilter.size) {
@@ -333,6 +334,17 @@ function renderMap() {
   setTimeout(declutterLabels, 0);
 }
 
+
+// Switching tab or list mode: the map is only rebuilt when what it shows changes (the day in focus, or
+// a view that draws its own pins), and only after the panel's slide, so the slide isn't held up by it.
+let mapDrawn = null, navMapT = 0;
+const MAP_OVERLAY_VIEWS = ['edit', 'import', 'preview'];
+function navMap() {
+  const d = mapDrawn;
+  if (d && d.dayFocus === dayFocus && !MAP_OVERLAY_VIEWS.includes(d.kind) && !MAP_OVERLAY_VIEWS.includes(view.kind)) return;
+  clearTimeout(navMapT);
+  navMapT = setTimeout(renderMap, calmMotion() ? 0 : SLIDE_MS + 60);
+}
 
 /* ---------- getting around: transport layer ---------- */
 // Off by default. Hubs (airport, train, bus terminals) show at any zoom, taxi stands from
@@ -496,8 +508,8 @@ const tagChips = (tags, cls = 'tg') => (tags || []).map(t => `<span class="${cls
 function renderPanel() {
   const from = shownScreen, to = screenNow(), move = rendering ? null : slideMove(from, to);
   const skyMoves = !!(move && from.sky !== to.sky);   // the banner slides only when it comes or goes
-  const old = move && move.dir ? snapPanel(skyMoves && from.sky) : null;
   if (move && from) scrollMemory[from.key] = $('#pbody').scrollTop;
+  const old = move && move.dir ? snapPanel(skyMoves && from.sky) : null;
   rendering++;
   try { renderPanelInner(); $('#panel').dataset.view = view.kind; decoratePanel(); } finally { rendering--; }
   if (rendering) return;
@@ -510,6 +522,7 @@ function renderPanel() {
    new one in from the other, like pages side by side. Re-renders of the same screen (filters, sync, routes)
    don't move. Direction: tab order on phones, then deeper (forward) / back, then the order of list modes. */
 let shownScreen = null, rendering = 0, slideStage = null;
+const SLIDE_MS = 340;
 const scrollMemory = {};
 const SLIDE_TABS = ['map', 'plan', 'money', 'trip'];
 const SLIDE_MODES = ['today', 'type', 'near', 'days'];
@@ -533,7 +546,9 @@ function slideMove(a, b) {
   if (a.id !== b.id) return { dir: 0 };   // another place's card: a soft fade, no slide
   return null;
 }
-// A still copy of what the panel shows now (sky banner only if it is about to change), laid over the panel.
+// The old screen, laid over the panel so it can slide away. Its content is moved out of #phead/#pbody into
+// look-alike shells (moving is nearly free; copying a long list held up the slide on a phone). Only the small
+// sky banner is copied, and only when it is about to come or go.
 function snapPanel(withSky) {
   endSlide();
   if (calmMotion()) return null;
@@ -547,17 +562,26 @@ function snapPanel(withSky) {
   stage.style.top = (top - pr.top - panel.clientTop) + 'px'; stage.style.height = Math.max(0, bottom - top) + 'px';
   const scrolls = [];
   for (const el of parts) {
-    const r = el.getBoundingClientRect(), c = el.cloneNode(true);
+    const r = el.getBoundingClientRect();
+    let c;
+    if (el === sky) c = el.cloneNode(true);
+    else {
+      c = document.createElement('div'); c.className = el.className;
+      const y = el.scrollTop;
+      while (el.firstChild) c.appendChild(el.firstChild);
+      if (y) scrolls.push([c, y]);
+    }
     c.removeAttribute('id'); c.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
-    c.style.transform = '';   // mid-swipe the content is shifted; the copy is placed where it shows instead
-    Object.assign(c.style, { display: getComputedStyle(el).display, position: 'absolute', margin: '0', boxSizing: 'border-box', left: (r.left - pr.left - panel.clientLeft) + 'px', top: (r.top - top) + 'px', width: r.width + 'px', height: r.height + 'px' });
+    // Placed where it shows on screen (mid-swipe the real content is shifted, the shell isn't).
+    Object.assign(c.style, { display: getComputedStyle(el).display, position: 'absolute', margin: '0', boxSizing: 'border-box', transform: '', left: (r.left - pr.left - panel.clientLeft) + 'px', top: (r.top - top) + 'px', width: r.width + 'px', height: r.height + 'px', opacity: el.style.opacity });
     stage.appendChild(c);
-    if (el.scrollTop) scrolls.push([c, el.scrollTop]);
   }
   panel.appendChild(stage);
   scrolls.forEach(([c, y]) => { c.scrollTop = y; });
   return { stage };
 }
+// Both screens wait, already in their starting places, until the new one has been drawn (two frames), then
+// move together. Otherwise a busy phone spends the first part of the slide drawing, and the new screen pops in.
 function slidePanel(move, old, withSky) {
   if (calmMotion()) { old?.stage.remove(); return; }
   const panel = $('#panel'), sky = panel.querySelector('.sky');
@@ -569,13 +593,16 @@ function slidePanel(move, old, withSky) {
     old?.stage.remove();
     return;
   }
-  const w = panel.clientWidth, d = move.dir, ms = 340;
+  const w = panel.clientWidth, d = move.dir, ms = SLIDE_MS;
   slideStage = old.stage;
   const out = old.stage.animate([{ transform: 'none', opacity: 1 }, { transform: `translateX(${-d * w}px)`, opacity: .35 }], { duration: ms, easing: ease });
   out.onfinish = out.oncancel = () => { old.stage.remove(); if (slideStage === old.stage) slideStage = null; };
   const ins = els.map(el => el.animate([{ transform: `translateX(${d * w}px)`, opacity: .35 }, { transform: 'none', opacity: 1 }], { duration: ms, easing: ease }));
-  // Safety net if animation frames stall (hidden tab, busy phone): never leave the copy up or the content off to the side.
-  setTimeout(() => { if (old.stage.isConnected) { old.stage.remove(); if (slideStage === old.stage) slideStage = null; } ins.forEach(a => { if (a.playState === 'running') a.finish(); }); }, ms + 400);
+  const all = [out, ...ins];
+  all.forEach(a => a.pause());
+  requestAnimationFrame(() => requestAnimationFrame(() => all.forEach(a => { if (a.playState === 'paused') a.play(); })));
+  // Safety net if animation frames stall (hidden tab, busy phone): never leave the old screen up or the new one off to the side.
+  setTimeout(() => { if (old.stage.isConnected) { old.stage.remove(); if (slideStage === old.stage) slideStage = null; } ins.forEach(a => { if (a.playState !== 'finished' && a.playState !== 'idle') a.finish(); }); }, ms + 500);
 }
 /* ---------- phone: swipe the sheet sideways to change tab; on an inner screen, swipe right to go back ----------
    The content follows the finger; on release it either goes (far enough, or flicked) and the normal slide
@@ -980,16 +1007,16 @@ function goTab(tab) {
   if (tab === 'map') {
     if (same) { setSheet(panelEl.dataset.sheet === 'peek' ? 'half' : 'peek'); return; }
     if (listMode === 'today' || listMode === 'days') applyListMode('type');
-    view = { kind: 'list' }; renderMap(); renderPanel(); setSheet('peek');
+    view = { kind: 'list' }; navMap(); renderPanel(); setSheet('peek');
   } else if (tab === 'plan') {
     if (same) { setSheet(panelEl.dataset.sheet === 'full' ? 'half' : 'full'); return; }
     const ti = todayInfo();
     if (listMode !== 'today' && listMode !== 'days') applyListMode(ti.state === 'on' && stopsOf(ti.day).length ? 'today' : 'days');
-    view = { kind: 'list' }; renderMap(); renderPanel(); setSheet('half');
+    view = { kind: 'list' }; navMap(); renderPanel(); setSheet('half');
   } else if (tab === 'money') {
     let last = ''; try { last = localStorage.getItem(MONEY_KEY) || ''; } catch {}
     if (last === 'spend') openSpend(); else openBills();
-  } else { view = { kind: 'trip' }; renderMap(); renderPanel(); setSheet('full'); }
+  } else { view = { kind: 'trip' }; navMap(); renderPanel(); setSheet('full'); }
   $('#pbody').scrollTop = 0;
 }
 $('#tabbar').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) goTab(b.dataset.tab); });
@@ -2287,13 +2314,13 @@ $('#pfoot').addEventListener('click', openSync);
 const spendCtx = () => ({ view, toast, toastAction, copyText, rerender: renderPanel, openBills: () => openBills(), moveSplit });
 // Shared bills for the two travellers (js/bills.js): synced with the trip code, encrypted.
 const billsCtx = () => ({ view, toast, toastAction, rerender: renderPanel, cats: spend.XCATS, celebrate });
-function openBills() { draft = null; setMode('browse'); view = { kind: 'bills', edit: null }; renderMap(); renderPanel(); setSheet('full'); bills.syncNow(); }
+function openBills() { draft = null; setMode('browse'); view = { kind: 'bills', edit: null }; navMap(); renderPanel(); setSheet('full'); setTimeout(() => bills.syncNow(), SLIDE_MS + 60); }
 // Old "split in two" spending entries become shared bills paid by this device's person.
 function moveSplit(list) {
   if (!bills.profile()) { openBills(); toast('First say who’s using this device, then move them'); return false; }
   return bills.addMine(list) > 0;
 }
-const openSpend = () => { draft = null; setMode('browse'); view = { kind: 'spend', edit: null }; renderMap(); renderPanel(); setSheet('full'); };
+const openSpend = () => { draft = null; setMode('browse'); view = { kind: 'spend', edit: null }; navMap(); renderPanel(); setSheet('full'); };
 document.querySelector('.panel').addEventListener('submit', e => {
   if (e.target.matches('[data-xform]')) { e.preventDefault(); if (view.kind === 'spend') spend.onSubmit(e.target, spendCtx()); }
   if (e.target.matches('[data-bform], [data-bsetup]')) { e.preventDefault(); if (view.kind === 'bills') bills.onSubmit(e.target, billsCtx()); }
@@ -2332,7 +2359,7 @@ document.querySelector('.panel').addEventListener('click', e => {
     renderMap(); renderPanel(); return;
   }
   const lm = t.closest('[data-listmode]');
-  if (lm) { applyListMode(lm.dataset.listmode); renderMap(); renderPanel(); $('#pbody').scrollTop = 0; return; }
+  if (lm) { applyListMode(lm.dataset.listmode); navMap(); renderPanel(); $('#pbody').scrollTop = 0; return; }
   if (view.kind === 'essentials' && ess.onClick(t, essCtx())) return;
   if (t.closest('[data-sortstart]')) { startSort(); return; }
   const sd0 = t.closest('[data-sortday]');
