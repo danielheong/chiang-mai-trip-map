@@ -19,23 +19,24 @@ export const PAINT = {
   halo:      '#FFFDF4',
 };
 
-// Night: indigo land, deep water and lamp-lit roads, like the city after dusk.
+// Night: the same painting after dusk, with the same contrasts as the day map: indigo land, a warm lamp-lit
+// town (the terracotta at night), deep green forest, a moonlit river lighter than the land, and gold roads.
 export const PAINT_NIGHT = {
-  land:      '#2B3442',
-  urban:     '#313B4A',
-  park:      '#2A4239',
-  wood:      '#263C35',
-  farmland:  '#2F3C41',
-  water:     '#1A2540',
-  waterLine: '#22304F',
-  road:      '#8B7B58',
-  roadMinor: '#5F584B',
-  path:      '#4E4A41',
-  building:  '#3B4658',
-  runway:    '#3A4252',
-  label:     '#B4BBC8',
-  labelWater:'#8AA3C6',
-  halo:      '#222A36',
+  land:      '#252E45',
+  urban:     '#47394A',
+  park:      '#2E5B48',
+  wood:      '#1F4838',
+  farmland:  '#33463F',
+  water:     '#3A78A0',
+  waterLine: '#4386AE',
+  road:      '#D2B577',
+  roadMinor: '#8C7C5C',
+  path:      '#6E634F',
+  building:  '#5B4558',
+  runway:    '#3B4560',
+  label:     '#D5DAE3',
+  labelWater:'#A8CBE6',
+  halo:      '#1D2538',
 };
 
 const line = (ids) => ['match', ['get', 'class'], ids, true, false];
