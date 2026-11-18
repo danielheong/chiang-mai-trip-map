@@ -1117,3 +1117,24 @@ input[type=date],input[type=time]{-webkit-appearance:none;appearance:none;font-f
 .bseg span small{color:color-mix(in srgb,var(--ink) 78%,transparent)}
 :root[data-theme="night"] .recap{background:color-mix(in srgb,var(--gold) 9%,var(--card))}
 .bseg span small{color:var(--ink)}
+
+/* ---------- icons and night colour (19 Nov 2026) ---------- */
+/* Menu / Trip icons: the painted circle sits centred behind the symbol (it used to be nudged right and down for an
+   "off-register" print look, which made every symbol look misplaced). Its wobbly hand-drawn outline stays. */
+.pic::before{inset:-3px;opacity:.9}
+/* Night: a deeper, bluer indigo instead of grey slate, and jewel-toned paint instead of faded pastels, so colour
+   carries at night the way the pastels do by day. The map itself stays calm (PAINT_NIGHT is unchanged). */
+:root[data-theme="night"]{
+  --paper:#1D2240; --paper-2:#2A3058; --card:#242A4C; --row:#2D3459; --line:#454E80;
+  --label:#7FDCD2; --teal:#7FDCD2; --gold:#F2C14E;
+  --jw1:#2E8A84; --jw2:#C39233; --jw3:#C9603F; --jw4:#B5507F;
+}
+:root[data-theme="night"] .pic::before{opacity:1;background:var(--pwn,var(--jw1))}
+:root[data-theme="night"] :is(.pi,.trow):nth-of-type(4n+2) .pic{--pwn:var(--jw2)}
+:root[data-theme="night"] :is(.pi,.trow):nth-of-type(4n+3) .pic{--pwn:var(--jw3)}
+:root[data-theme="night"] :is(.pi,.trow):nth-of-type(4n) .pic{--pwn:var(--jw4)}
+:root[data-theme="night"] .pic{color:#FFF6E6}
+:root[data-theme="night"] .tab svg .w{opacity:.55}
+:root[data-theme="night"] .tab[aria-current="page"] svg .w{opacity:.9}
+/* Day colours used as text (day headings, "Today") are lifted at night so the deep reds and blues read on indigo. */
+:root[data-theme="night"] :is(.dnum,.ddate b){color:color-mix(in srgb,var(--dc) 55%,#fff)}
