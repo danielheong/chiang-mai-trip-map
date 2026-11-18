@@ -7,7 +7,7 @@
 // Sync: every bill is encrypted in the browser with a key derived from the trip code and
 // stored under a separate, derived namespace. So devices with the trip code share the bills,
 // the server can't read them, and view-only links never include them.
-import { rpc, isConfigured, getCode, syncRows, onSyncTick } from './sync.js?v=202611190007';
+import { rpc, isConfigured, getCode, syncRows, onSyncTick } from './sync.js?v=202611190015';
 
 const KEY = 'cm-trip-map-bills';
 const SET_KEY = 'cm-trip-map-bills-set';       // { names: [a, b], rate, updatedAt }
