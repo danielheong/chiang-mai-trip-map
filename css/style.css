@@ -962,3 +962,158 @@ svg .w{stroke:none;fill:var(--w,var(--c-other))}
 
 :root[data-theme="night"] .arealbl span{color:#F1E6C8;text-shadow:0 0 3px #1D2538,0 0 8px #1D2538}
 :root[data-theme="night"] .arealbl.water span{color:#BFDDF2}
+
+/* ---------- principles round (18 Nov 2026) ---------- */
+/* One main colour: every main action (Add, Save, Google Maps, the + tab) is the same painted red. */
+:root{--act:#D2452F;--act-dk:#A8331F;--on-act:#FFF8EE}
+:root[data-theme="night"]{--act:#D9573F;--act-dk:#B0412C;--on-act:#FFF8EE}
+.btn.primary,.btn.go:first-child,.gorow .btn.go:first-child,:root[data-theme="night"] .btn.go:first-child{background:var(--act);border-color:var(--act-dk);color:var(--on-act)}
+.btn.primary:hover,.btn.go:first-child:hover,:root[data-theme="night"] .btn.primary:hover{background:color-mix(in srgb,var(--act) 88%,#fff)}
+.gorow .btn.go:first-child svg circle{fill:var(--act)}
+.tab.add i{background:var(--act);color:var(--on-act);border-color:var(--act-dk)}
+
+/* Phones: the status note over the map (updateNet in app.js). */
+.netpill{display:none}
+@media (max-width:860px){
+  .netpill:not([hidden]){display:flex}
+  .netpill{left:50%;top:64px;transform:translateX(-50%);align-items:center;gap:8px;padding:6px 15px 6px 12px;border-radius:var(--wobble);
+    font:16px/1.2 var(--f-hand);background:var(--card);color:var(--ink);border:1.5px solid color-mix(in srgb,var(--ink) 25%,transparent);
+    box-shadow:var(--shadow);white-space:nowrap;cursor:pointer;animation:netin .25s ease-out}
+  .netpill b{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+  .netpill.ok b{background:var(--ok)}.netpill.off b{background:var(--gold)}.netpill.err b{background:var(--danger)}
+}
+@keyframes netin{from{opacity:0;translate:0 -6px}}
+@media (prefers-reduced-motion:reduce){.netpill{animation:none}}
+
+/* "Discard your changes?" (askDiscard in app.js): a card above everything, at the bottom on phones. */
+.askwrap{position:fixed;inset:0;z-index:6000;background:rgba(40,34,28,.38);display:grid;place-items:center;padding:16px;animation:netin .18s ease-out}
+.askbox{width:min(360px,100%);background:var(--card);background-image:var(--grain);background-size:300px;border:1.5px solid color-mix(in srgb,var(--ink) 25%,transparent);
+  border-radius:20px;padding:18px 18px 16px;box-shadow:0 12px 40px rgba(40,30,20,.3)}
+.askt{font-family:var(--f-hand);font-size:23px;margin:0 0 4px}
+.askp{margin:0 0 14px;color:var(--muted)}
+.askbox .row{display:flex;gap:10px;flex-wrap:wrap}
+.askbox .btn{flex:1;min-height:44px}
+.askno{color:var(--danger);border-color:color-mix(in srgb,var(--danger) 55%,transparent)}
+@media (max-width:860px){.askwrap{align-items:end;padding-bottom:max(16px,env(safe-area-inset-bottom,0px))}}
+@media (prefers-reduced-motion:reduce){.askwrap{animation:none}}
+
+/* Money: the Shared bills / My spending switch sits under the title, like Today / All days. */
+.phead .moneyseg{margin-top:8px}
+
+/* Painted form controls: no grey phone-default dropdown arrows, ticks or date boxes next to the painted cards. */
+select{-webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.4 6.1c1.7 1.5 3.1 3 4.7 4.5 1.5-1.6 2.9-3.2 4.5-4.7' fill='none' stroke='%238A7F6E' stroke-width='2.1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")!important;
+  background-repeat:no-repeat!important;background-position:right 9px center!important;background-size:13px!important;padding-right:30px!important}
+input[type=checkbox]:not(.seg input){-webkit-appearance:none;appearance:none;width:22px;height:22px;margin:0;flex:none;display:inline-grid;place-items:center;vertical-align:-5px;
+  border:1.8px solid color-mix(in srgb,var(--ink) 60%,transparent);border-radius:7px 5px 8px 6px;background:var(--card);cursor:pointer}
+input[type=checkbox]:not(.seg input):checked{background:var(--act);border-color:var(--act-dk)}
+input[type=checkbox]:not(.seg input):checked::after{content:"";width:6px;height:11px;margin-top:-3px;border:solid var(--on-act);border-width:0 2.6px 2.6px 0;transform:rotate(42deg)}
+input[type=checkbox]:not(.seg input):focus-visible{outline:2px solid var(--act);outline-offset:2px}
+input[type=date],input[type=time]{-webkit-appearance:none;appearance:none;font-family:var(--f-body);font-size:15px;color:var(--ink);border:1.5px solid var(--line);
+  background-color:var(--paper);border-radius:12px;padding:7px 10px;min-height:40px}
+
+/* Readability (measured 18 Nov 2026): every text passes WCAG AA (4.5:1, 3:1 for large) in day and night. */
+:root,:root[data-theme="night"]{--act:#C13B26;--act-dk:#962C1B}
+:root[data-theme="night"]{--muted:#B8B2A3}
+.itemrow.visited .item{opacity:.92}
+.tk{color:var(--dt,#fff)}
+.group.day .stopn{color:var(--dt,#fff)}
+.stopn{background:var(--act);color:var(--on-act)}
+.stampv{border-color:#176666;color:#176666}
+:root[data-theme="night"] .stampv{border-color:#7FD0C8;color:#7FD0C8}
+.nextcard .eyebrow{color:#A8331F}
+:root[data-theme="night"] :is(.xtotal,.tnote.good){--label:#4C5E3A;--sage-dk:#4C5E3A}
+.xtotal span{color:color-mix(in srgb,var(--sage-dk) 80%,#000)}
+
+/* ---------- batch 2 (18 Nov 2026) ---------- */
+/* Money: summary first; adding and editing happen in a sheet over the panel (.qsheet-wrap, lifted by renderPanel). */
+.xtop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.xtop > div{display:grid}
+.xaddbtn{flex:none;min-height:40px}
+.bills .xtotal .row .btn{min-height:40px}
+.qsheet-wrap{position:absolute;inset:0;z-index:30;background:rgba(40,34,28,.32);display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;gap:0;padding:0;border-radius:inherit;overflow:hidden}
+.qsheet{border:0;border-top:1.5px solid var(--line);width:100%;max-height:92%;overflow:auto;overscroll-behavior:contain;background:var(--card);background-image:var(--grain);background-size:300px;
+  border-radius:22px 22px 0 0;box-shadow:0 -10px 30px rgba(40,30,20,.22);padding:14px 16px 16px;display:grid;grid-template-columns:minmax(0,1fr);gap:11px}
+.qsheet-wrap.enter{animation:qdim .22s ease-out}.qsheet-wrap.enter .qsheet{animation:qup .32s cubic-bezier(.25,.8,.25,1)}
+@keyframes qdim{from{background:rgba(40,34,28,0)}}@keyframes qup{from{transform:translateY(100%)}}
+@media (prefers-reduced-motion:reduce){.qsheet-wrap.enter,.qsheet-wrap.enter .qsheet{animation:none}}
+.qhead{display:flex;justify-content:space-between;align-items:center}
+.qsheet .qt{font-family:var(--f-hand);font-size:23px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:400}
+.qx{width:40px;height:40px;border:0;background:none;font-size:26px;line-height:1;color:var(--muted);cursor:pointer;border-radius:50%}
+.qamt{display:flex;align-items:center;gap:10px}
+.qamt .xin.qbig{flex:1 1 0;width:auto;min-width:0;font:700 30px/1.1 var(--f-body);padding:8px 12px;text-align:left}
+.qchips{display:flex;gap:6px}.qchips.wrap{flex-wrap:wrap}
+.qchips label{position:relative}
+.qchips input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+.qchips span{display:inline-flex;align-items:center;min-height:38px;padding:4px 13px;border:1.5px solid var(--line);border-radius:var(--wobble);background:var(--paper);font-family:var(--f-hand);font-size:16px;white-space:nowrap}
+.qchips input:checked + span{background:var(--act);border-color:var(--act-dk);color:var(--on-act)}
+.qchips input:focus-visible + span{outline:2px solid var(--act);outline-offset:2px}
+.qdate{display:flex;align-items:center;gap:10px;font-family:var(--f-hand);font-size:16px}
+.qdate input{flex:1}
+.qbtns{display:flex;gap:10px}.qbtns .btn{flex:1;min-height:46px}
+.qsheet .fine{margin:0}
+
+/* Shared bills, first visit: an invitation instead of two empty fields. */
+.bintro{text-align:center;padding:18px 14px 6px;display:grid;justify-items:center;gap:6px}
+.bintro svg{width:110px;height:80px;color:var(--ink)}
+.bintro h3{font-family:var(--f-hand);font-weight:400;font-size:24px;margin:4px 0 0;line-height:1.15}
+.bintro p{margin:0 0 6px;color:var(--muted);max-width:30ch}
+.bintro .btn{min-height:46px;padding-inline:22px}
+
+/* Edit form: essentials first (name + must-go heart, type, day, notes), the rest folded, Save pinned. */
+.nameline{display:flex;align-items:flex-end;gap:10px}
+.nameline > div{flex:1;min-width:0}
+.favheart{display:grid;justify-items:center;gap:1px;cursor:pointer;flex:none;padding:0 2px 2px}
+.favheart input{position:absolute;opacity:0;width:1px;height:1px}
+.favheart svg{width:34px;height:34px;fill:none;stroke:color-mix(in srgb,var(--ink) 55%,transparent);stroke-width:1.8;transition:transform .18s}
+.favheart input:checked + svg{fill:var(--act);stroke:var(--act-dk);transform:scale(1.06)}
+.favheart input:focus-visible + svg{outline:2px solid var(--act);outline-offset:3px;border-radius:8px}
+.favheart small{font-size:11.5px;color:var(--muted);font-weight:700}
+.daychips{display:flex;flex-wrap:wrap;gap:6px}
+.daychips input{position:absolute;opacity:0;pointer-events:none}
+.daychips label{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:4px 13px;border:1.5px solid var(--line);border-radius:var(--wobble);background:var(--paper);font-family:var(--f-hand);font-size:16px;cursor:pointer}
+.daychips label i{width:10px;height:10px;border-radius:50%;background:var(--dc)}
+.daychips input:checked + label{background:var(--act);border-color:var(--act-dk);color:var(--on-act)}
+.daychips input:checked + label i{box-shadow:0 0 0 2px var(--on-act)}
+.daychips input:focus-visible + label{outline:2px solid var(--act);outline-offset:2px}
+.form details.more{border-top:1.5px dashed var(--line);padding-top:10px}
+.form details.more > summary{cursor:pointer;font-family:var(--f-hand);font-size:18px;list-style:none;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;min-height:36px}
+.form details.more > summary::-webkit-details-marker{display:none}
+.form details.more > summary::after{content:"▾";order:-1;color:var(--muted);transition:rotate .2s}
+.form details.more[open] > summary::after{rotate:180deg}
+.form details.more > summary small{font-family:var(--f-body);font-size:12.5px;color:var(--muted)}
+.form details.more[open]{display:grid;gap:14px}
+.savebar{position:sticky;bottom:-14px;z-index:3;display:flex;gap:10px;margin:2px -12px -14px;padding:10px 12px calc(10px + 2px);
+  background:var(--card);background-image:var(--grain);background-size:300px;border-top:1.5px solid var(--line)}
+.savebar .btn{flex:1;min-height:46px}
+@media (max-width:860px){.savebar{bottom:-12px;margin:2px -10px -12px;padding:10px}}
+
+/* An empty day: a dashed card with one clear action. */
+.dayempty{border:1.6px dashed color-mix(in srgb,var(--ink) 30%,transparent);border-radius:14px;padding:12px;margin:4px 0 8px;display:grid;justify-items:center;gap:4px;text-align:center}
+.dayempty b{font-family:var(--f-hand);font-weight:400;font-size:18px}
+.dayempty span{font-size:13px;color:var(--muted)}
+.dayempty .btn{margin-top:4px;min-height:40px}
+
+/* End-of-day recap (recapHTML): replaces the Today card once the day's last stop is done. */
+.recap{background:color-mix(in srgb,var(--gold) 20%,var(--card));border:1.6px solid color-mix(in srgb,var(--gold) 60%,transparent);border-radius:18px;padding:14px;display:grid;gap:10px;margin-bottom:12px}
+.rtop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.rtop > div{display:grid;gap:1px}
+.recap .eyebrow{color:#A8331F}
+:root[data-theme="night"] .recap .eyebrow{color:#F2A08C}
+.rtitle{font-family:var(--f-hand);font-weight:400;font-size:24px;line-height:1.1}
+.rtop small{color:var(--muted)}
+.rstamp{flex:none;width:66px;height:66px;display:grid;place-items:center;border:2px solid #176666;border-radius:50%;color:#176666;font-family:var(--f-hand);font-size:17px;rotate:-12deg}
+:root[data-theme="night"] .rstamp{border-color:#7FD0C8;color:#7FD0C8}
+@media (prefers-reduced-motion:no-preference){.rstamp{animation:stamp .55s cubic-bezier(.3,1.5,.5,1) both}}
+.rstats{display:flex;gap:6px}
+.rstat{flex:1;display:grid;justify-items:center;padding:7px 4px;background:var(--card);border:1px solid var(--line);border-radius:12px}
+.rstat b{font-size:18px}.rstat span{font-size:12px;color:var(--muted)}
+.rfav{margin:0;font-size:13.5px;color:var(--muted)}
+.rnext{display:grid;gap:5px;border-top:1.5px dashed color-mix(in srgb,var(--gold) 60%,transparent);padding-top:10px}
+.rrow{display:flex;justify-content:space-between;gap:8px;font-family:var(--f-hand);font-size:16px}
+.rrow small,.rmore{font-family:var(--f-body);font-size:12.5px;color:var(--muted)}
+.rnext .btn{justify-self:start;margin-top:4px;min-height:42px}
+.dpill{color:var(--dt,#fff)}
+.bseg span small{color:color-mix(in srgb,var(--ink) 78%,transparent)}
+:root[data-theme="night"] .recap{background:color-mix(in srgb,var(--gold) 9%,var(--card))}
+.bseg span small{color:var(--ink)}

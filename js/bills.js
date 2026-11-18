@@ -7,7 +7,7 @@
 // Sync: every bill is encrypted in the browser with a key derived from the trip code and
 // stored under a separate, derived namespace. So devices with the trip code share the bills,
 // the server can't read them, and view-only links never include them.
-import { rpc, isConfigured, getCode } from './sync.js?v=202611171143';
+import { rpc, isConfigured, getCode } from './sync.js?v=202611182148';
 
 const KEY = 'cm-trip-map-bills';
 const SET_KEY = 'cm-trip-map-bills-set';       // { names: [a, b], rate, updatedAt }
@@ -133,6 +133,12 @@ function syncNote() {
 
 function setupHTML(view) {
   const first = !hasNames();
+  if (first && !view.setup) return `<div class="form spend bills"><div class="bintro">
+    <svg viewBox="0 0 86 62" aria-hidden="true"><ellipse cx="43" cy="56" rx="34" ry="4" fill="currentColor" opacity=".12"/><rect x="14" y="20" width="26" height="30" rx="5" fill="#F3D58A" stroke="#4A4036" stroke-width="1.6"/><rect x="46" y="20" width="26" height="30" rx="5" fill="#A9D3CF" stroke="#4A4036" stroke-width="1.6"/><path d="M20 20c0-8 14-8 14 0M52 20c0-8 14-8 14 0" fill="none" stroke="#4A4036" stroke-width="1.6"/><circle cx="43" cy="13" r="6.5" fill="#F08A3C" stroke="#4A4036" stroke-width="1.4"/><path d="M41.2 9.6v6.8M41.2 9.6h2.4a1.6 1.6 0 0 1 0 3.3h-2.4 2.7a1.7 1.7 0 0 1 0 3.5h-2.7M43 8.4v1.2M43 16.4v1.2" fill="none" stroke="#4A4036" stroke-width="1"/></svg>
+    <h3>Split bills with your travel buddy</h3>
+    <p>Add who paid; the app keeps the running total, so settling up at the end is one tap.</p>
+    <button type="button" class="btn primary" data-bsetupgo>Set up shared bills</button>
+    <p class="fine">${syncNote()}</p></div></div>`;
   return `<form class="form spend bills" data-bsetup novalidate autocomplete="off">
     <div class="tnote"><b>${first ? 'Who is splitting the bills?' : 'Change the names'}</b>
       <p>${first ? 'Just the two of you. Type both names once; every device on your trip code then knows them.' : 'Bills stay with the same person, only the name shown changes.'}</p></div>
@@ -190,37 +196,12 @@ export function render(head, body, view, ctx) {
       <span>${square ? 'All square' : mineBal > 0 ? `${esc(set.names[other])} owes you` : `You owe ${esc(set.names[other])}`}</span>
       <b><i>฿</i>${square ? '0' : num(Math.round(Math.abs(mineBal)), 0)}</b>
       ${square ? '' : `<small>about ${rm(Math.abs(mineBal) / set.rate)}</small>`}
-      ${bills.length ? `<small>You paid ${baht(Math.round(paid(me)))} · ${esc(set.names[other])} paid ${baht(Math.round(paid(other)))}</small>` : '<small>No bills yet. Add the first one below.</small>'}
-      ${square ? '' : view.settle
+      ${bills.length ? `<small>You paid ${baht(Math.round(paid(me)))} · ${esc(set.names[other])} paid ${baht(Math.round(paid(other)))}</small>` : '<small>No bills yet.</small>'}
+      ${!square && view.settle
         ? `<div class="row bsettlerow"><span>Record that ${mineBal > 0 ? `${esc(set.names[other])} paid you` : `you paid ${esc(set.names[other])}`} ${baht(r2(Math.abs(mineBal)))}?</span><button type="button" class="btn primary" data-bsettleyes>Yes, settled</button><button type="button" class="btn ghost" data-bcancel>Not yet</button></div>`
-        : '<div class="row"><button type="button" class="btn" data-bsettle>Settle up</button></div>'}
+        : `<div class="row"><button type="button" class="btn primary" data-badd>+ Add bill</button>${square ? '' : '<button type="button" class="btn" data-bsettle>Settle up</button>'}</div>`}
     </div>
 
-    <form class="xadd" data-bform novalidate>
-      <span class="l">${editing ? 'Edit bill' : 'Add a bill'}</span>
-      <div class="xline">
-        <input class="xin" id="b-amount" type="text" inputmode="decimal" placeholder="Full amount" value="${esc(f.amount)}" aria-label="Full amount of the bill" autocomplete="off">
-        <select class="xin" id="b-cur" aria-label="Currency"><option value="THB"${f.cur === 'THB' ? ' selected' : ''}>฿ Baht</option><option value="MYR"${f.cur === 'MYR' ? ' selected' : ''}>RM Ringgit</option></select>
-      </div>
-      <input class="xin" id="b-what" type="text" placeholder="What was it? e.g. dinner at Huen Phen" value="${esc(f.what)}" maxlength="80" aria-label="What was it">
-      <fieldset class="bseg"><legend class="l">Who paid?</legend>
-        ${[me, other].map(i => `<label><input type="radio" name="b-payer" value="${i}"${f.payer === i ? ' checked' : ''}><span>${who(i)}</span></label>`).join('')}
-      </fieldset>
-      <div><label class="l" for="b-split">How is it split?</label>
-        <select class="xin" id="b-split">
-          <option value="even"${f.split === 'even' ? ' selected' : ''}>Split evenly</option>
-          <option value="p${me}"${f.split === 'p' + me ? ' selected' : ''}>All mine (${esc(set.names[me])})</option>
-          <option value="p${other}"${f.split === 'p' + other ? ' selected' : ''}>All ${esc(set.names[other])}’s</option>
-          <option value="exact"${f.split === 'exact' ? ' selected' : ''}>Exact amounts</option>
-        </select></div>
-      <div class="bexact" id="b-exact"${f.split === 'exact' ? '' : ' hidden'}><label class="l" for="b-share">My part (${esc(set.names[me])}) <small class="opt">${esc(set.names[other])} gets the rest</small></label>
-        <input class="xin" id="b-share" type="text" inputmode="decimal" placeholder="e.g. 180" value="${f.split === 'exact' ? esc(shareOf(f, me)) : ''}" autocomplete="off"></div>
-      <div class="xline">
-        <select class="xin" id="b-cat" aria-label="Category">${Object.keys(cats).map(k => `<option value="${k}"${f.cat === k ? ' selected' : ''}>${cats[k].label}</option>`).join('')}</select>
-        <input class="xin" id="b-date" type="date" value="${esc(f.date)}" aria-label="Date">
-      </div>
-      <div class="row"><button type="submit" class="btn primary">${editing ? 'Save changes' : 'Add bill'}</button>${editing ? '<button type="button" class="btn ghost" data-bcancel>Cancel</button>' : ''}</div>
-    </form>
 
     ${dates.map(d => {
       const rows = items.filter(b => b.date === d).sort((a, b) => b.createdAt - a.createdAt);
@@ -238,7 +219,31 @@ export function render(head, body, view, ctx) {
       <button type="button" class="linkbtn" data-bnames>Change names</button>
     </div>
     <p class="fine">${syncNote()}</p>
-  </div>`;
+  </div>${view.adding || editing ? billSheetHTML(f, editing, cats, other) : ''}`;
+}
+// Adding or editing a bill happens in a sheet over the page, like Spending (app.js lifts it over the panel).
+function billSheetHTML(f, editing, cats, other) {
+  return `<div class="qsheet-wrap form spend bills"><form class="qsheet xadd" data-bform novalidate role="dialog" aria-modal="true" aria-labelledby="b-sheet-t">
+    <div class="qhead"><span class="qt" id="b-sheet-t">${editing ? 'Edit bill' : 'Add a bill'}</span><button type="button" class="qx" data-bcancel aria-label="Close">×</button></div>
+    <div class="qamt"><input class="xin qbig" id="b-amount" type="text" inputmode="decimal" placeholder="0" value="${esc(f.amount)}" aria-label="Full amount of the bill" autocomplete="off">
+      <div class="qchips" role="radiogroup" aria-label="Currency">${[['THB', '฿ Baht'], ['MYR', 'RM']].map(([v, t]) => `<label><input type="radio" name="b-cur" value="${v}"${f.cur === v ? ' checked' : ''}><span>${t}</span></label>`).join('')}</div></div>
+    <input class="xin" id="b-what" type="text" placeholder="What was it? e.g. dinner at Huen Phen" value="${esc(f.what)}" maxlength="80" aria-label="What was it">
+    <fieldset class="bseg"><legend class="l">Who paid?</legend>
+      ${[me, other].map(i => `<label><input type="radio" name="b-payer" value="${i}"${f.payer === i ? ' checked' : ''}><span>${who(i)}</span></label>`).join('')}
+    </fieldset>
+    <div><label class="l" for="b-split">How is it split?</label>
+      <select class="xin" id="b-split">
+        <option value="even"${f.split === 'even' ? ' selected' : ''}>Split evenly</option>
+        <option value="p${me}"${f.split === 'p' + me ? ' selected' : ''}>All mine (${esc(set.names[me])})</option>
+        <option value="p${other}"${f.split === 'p' + other ? ' selected' : ''}>All ${esc(set.names[other])}’s</option>
+        <option value="exact"${f.split === 'exact' ? ' selected' : ''}>Exact amounts</option>
+      </select></div>
+    <div class="bexact" id="b-exact"${f.split === 'exact' ? '' : ' hidden'}><label class="l" for="b-share">My part (${esc(set.names[me])}) <small class="opt">${esc(set.names[other])} gets the rest</small></label>
+      <input class="xin" id="b-share" type="text" inputmode="decimal" placeholder="e.g. 180" value="${f.split === 'exact' ? esc(shareOf(f, me)) : ''}" autocomplete="off"></div>
+    <div class="qchips wrap" role="radiogroup" aria-label="Category">${Object.keys(cats).map(k => `<label><input type="radio" name="b-cat" value="${k}"${f.cat === k ? ' checked' : ''}><span>${cats[k].label}</span></label>`).join('')}</div>
+    <label class="qdate"><span>Date</span><input class="xin" id="b-date" type="date" value="${esc(f.date)}"></label>
+    <div class="row qbtns"><button type="button" class="btn ghost" data-bcancel>Cancel</button><button type="submit" class="btn primary">${editing ? 'Save changes' : 'Add bill'}</button></div>
+  </form></div>`;
 }
 
 /* ---------- events ---------- */
@@ -264,11 +269,12 @@ export function onSubmit(form, ctx) {
     share0 = me === 0 ? mineAmt : amount - mineAmt;
   }
   const prev = ctx.view.edit ? items.find(b => b.id === ctx.view.edit) : null;
-  const b = clean({ id: prev?.id, createdAt: prev?.createdAt, amount, cur: $('#b-cur').value, what: $('#b-what').value, cat: $('#b-cat').value, date: $('#b-date').value,
+  const pick = n => form.querySelector(`[name="${n}"]:checked`)?.value;
+  const b = clean({ id: prev?.id, createdAt: prev?.createdAt, amount, cur: pick('b-cur') || lastCur, what: $('#b-what').value, cat: pick('b-cat') || 'misc', date: $('#b-date').value,
     payer: +(form.querySelector('[name="b-payer"]:checked')?.value ?? me), split, share0, updatedAt: Date.now() });
   if (!b) return;
   items = prev ? items.map(y => (y.id === prev.id ? b : y)) : [...items, b];
-  lastCur = b.cur; ctx.view.edit = null; ctx.view.settle = false;
+  lastCur = b.cur; ctx.view.edit = null; ctx.view.adding = false; ctx.view.settle = false;
   ctx.toast(persist() ? (prev ? 'Saved' : `Added ${money(b.amount, b.cur)}`) : 'Couldn’t save in this browser');
   ctx.rerender();
 }
@@ -280,9 +286,11 @@ export function onClick(t, ctx) {
   if (t.closest('[data-bnames]')) { v.names = true; ctx.rerender(); return true; }
   const pick = t.closest('[data-bme]');
   if (pick) { setMe(+pick.dataset.bme); v.pick = false; ctx.rerender(); ctx.toast(`This device is ${set.names[me]}’s`); hooks?.onChange?.(); return true; }
-  if (t.closest('[data-bcancel]')) { v.edit = null; v.pick = false; v.names = false; v.settle = false; ctx.rerender(); return true; }
+  if (t.closest('[data-bcancel]')) { v.edit = null; v.adding = false; v.pick = false; v.names = false; v.settle = false; ctx.rerender(); return true; }
+  if (t.closest('[data-badd]')) { v.adding = true; v.edit = null; v.settle = false; ctx.rerender(); document.querySelector('#b-amount')?.focus(); return true; }
+  if (t.closest('[data-bsetupgo]')) { v.setup = true; ctx.rerender(); document.querySelector('#b-n0')?.focus(); return true; }
   const ed = t.closest('[data-bedit]');
-  if (ed) { v.edit = ed.dataset.bedit; v.settle = false; ctx.rerender(); document.querySelector('#pbody').scrollTop = 0; document.querySelector('#b-amount')?.focus(); return true; }
+  if (ed) { v.edit = ed.dataset.bedit; v.adding = false; v.settle = false; ctx.rerender(); document.querySelector('#b-amount')?.focus(); return true; }
   const del = t.closest('[data-bdel]');
   if (del) {
     const b = items.find(y => y.id === del.dataset.bdel); if (!b) return true;

@@ -2,14 +2,14 @@
 // Map: Leaflet + CARTO basemap tiles (OpenStreetMap data).
 // Search: built-in list (instant) + Photon geocoder (OpenStreetMap) + pasted Google Maps links/coordinates.
 // Storage: localStorage, with export/import to a JSON file.
-import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611171143';
-import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611171143';
-import * as sync from './sync.js?v=202611171143';
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611171143';
-import * as spend from './expenses.js?v=202611171143';
-import * as ess from './essentials.js?v=202611171143';
-import * as bills from './bills.js?v=202611171143';
-import { routeFor, legText, totalText } from './routing.js?v=202611171143';
+import { CATS, CAT_KEYS, IDEAS, DIR, AREAS, DECOR, LANDMARKS, EXTRA_ICONS } from './data.js?v=202611182148';
+import { watercolorStyle, nightStyle } from './mapstyle.js?v=202611182148';
+import * as sync from './sync.js?v=202611182148';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611182148';
+import * as spend from './expenses.js?v=202611182148';
+import * as ess from './essentials.js?v=202611182148';
+import * as bills from './bills.js?v=202611182148';
+import { routeFor, legText, totalText, WALK_MAX_M } from './routing.js?v=202611182148';
 
 const L = window.L;
 const CENTER = [18.7883, 98.9853];
@@ -67,6 +67,7 @@ function toastAction(msg, label, fn) {
 
 /* ---------- state ---------- */
 let places = [];
+let localChangeAt = 0;   // when this device last changed its pins (for the phone's brief "Synced" note)
 // View-only mode: opened from a share link (#view=CODE). Pins come from the trip, nothing is saved.
 const VIEW_CODE = (location.hash.match(/^#view=([A-Za-z0-9-]{16,40})$/) || [])[1]?.replace(/-/g, '') || '';
 const viewOnly = !!VIEW_CODE;
@@ -112,6 +113,7 @@ function load() {
 }
 function persist() {
   if (viewOnly) return;
+  localChangeAt = Date.now();
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(places)); }
   catch { toast('Couldn’t save in this browser. Use Export to keep a copy.'); }
   sync.schedule();
@@ -511,7 +513,13 @@ function renderPanel() {
   if (move && from) scrollMemory[from.key] = $('#pbody').scrollTop;
   const old = move && move.dir ? snapPanel(skyMoves && from.sky) : null;
   rendering++;
+  const hadSheet = !!$('#panel > .qsheet-wrap');
+  $('#panel > .qsheet-wrap')?.remove();
   try { renderPanelInner(); $('#panel').dataset.view = view.kind; decoratePanel(); } finally { rendering--; }
+  // Money's add/edit sheet is rendered with the list, then lifted out so it covers the whole panel (and the
+  // list can't scroll it away). It only animates in when it newly opens, not on every re-render.
+  const qs = $('#pbody .qsheet-wrap');
+  if (qs) { if (!hadSheet) qs.classList.add('enter'); $('#panel').appendChild(qs); }
   if (rendering) return;
   shownScreen = screenNow();
   if (move) { $('#pbody').scrollTop = move.back ? scrollMemory[shownScreen.key] || 0 : 0; slidePanel(move, old, skyMoves && shownScreen.sky); }
@@ -609,7 +617,7 @@ function slidePanel(move, old, withSky) {
    carries on from where the finger left it, or springs back. Screens with unsaved typing don't swipe. */
 let swipe = null;
 function swipeTargets() {
-  if (!useTabs() || mode !== 'browse' || view.edit || ['edit', 'import', 'daypick'].includes(view.kind)) return null;
+  if (!useTabs() || mode !== 'browse' || view.edit || view.adding || ['edit', 'import', 'daypick'].includes(view.kind)) return null;
   if (slideDepth(view.kind) > 0) return $('#phead [data-back], #phead [data-back-days]') ? { prev: 'back', next: null } : null;
   const i = SLIDE_TABS.indexOf(currentTab());
   return i < 0 ? null : { prev: SLIDE_TABS[i - 1] || null, next: SLIDE_TABS[i + 1] || null };
@@ -672,7 +680,7 @@ function renderPanelInner() {
     const ti = todayInfo();
     const sub = listMode === 'today' && ti.state === 'on' ? `Day ${ti.day}${dayDate(ti.day).text ? ' · ' + esc(dayDate(ti.day).text) : ''}`
       : n ? `${n} ${n === 1 ? 'place' : 'places'}${nv ? ` · ${nv} visited` : ''}` : '';
-    head.innerHTML = `<div class="ptitle"><h2>${listMode === 'today' ? 'Today' : useTabs() && listMode === 'days' ? 'Plan' : 'My places'}</h2>${sub ? `<span class="pcount">${sub}</span>` : ''}</div>
+    head.innerHTML = `<div class="ptitle"><h2>${{ today: 'Today', days: 'Plan', near: 'Near me' }[listMode] || 'My places'}</h2>${sub ? `<span class="pcount">${sub}</span>` : ''}</div>
       ${n ? `<div class="modebar"><div class="modes" role="tablist" aria-label="Views">
         ${(!useTabs() ? [['today', 'Today'], ['type', 'Places'], ['near', 'Near me'], ['days', 'Days']] : listMode === 'today' || listMode === 'days' ? [['today', 'Today'], ['days', 'All days']] : [['type', 'Places'], ['near', 'Near me']]).map(([k, t]) => `<button type="button" role="tab" class="mode" data-listmode="${k}" aria-selected="${listMode === k}">${t}</button>`).join('')}</div>
         <button type="button" class="filterbtn" data-filtertoggle aria-expanded="${filtersOpen}" aria-label="Filter places${fcount ? `, ${fcount} active` : ''}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5h16M7 12h10M10 17.5h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>Filter</span>${fcount ? `<b>${fcount}</b>` : ''}</button></div>` : ''}
@@ -714,7 +722,7 @@ function renderPanelInner() {
     body.innerHTML = `<div class="idea card">
       <div class="hero">${dotFor(p)}<div><span class="tag">${CATS[p.cat].label}${p.price ? ' · ' + PRICE[p.price] : ''}${p.fav ? ' · <span class="heart">♥</span> must-go' : ''}</span>
       <h3>${esc(p.name)}</h3></div></div>
-      ${st || where || p.day ? `<p class="metaline">${st ? `<span class="openst ${st.open === true ? 'is-open' : st.open === false ? 'is-closed' : ''}"><b></b>${esc(st.text)}</span>` : ''}${where ? `<span>${where}</span>` : ''}${p.day ? `<span class="dpill" style="--dc:${dayColor(p.day)}">Day ${p.day}</span>` : ''}${p.visited ? '<span class="vt">✓ visited</span>' : ''}</p>` : ''}
+      ${st || where || p.day ? `<p class="metaline">${st ? `<span class="openst ${st.open === true ? 'is-open' : st.open === false ? 'is-closed' : ''}"><b></b>${esc(st.text)}</span>` : ''}${where ? `<span>${where}</span>` : ''}${p.day ? `<span class="dpill" style="--dc:${dayColor(p.day)};--dt:${dayInk(p.day)}">Day ${p.day}</span>` : ''}${p.visited ? '<span class="vt">✓ visited</span>' : ''}</p>` : ''}
       ${goButtons(p)}
       <div class="planrow">
         <button type="button" class="btn ${p.visited ? 'done' : ''}" data-visit="${esc(p.id)}" aria-pressed="${p.visited}">${p.visited ? '✓ Been here' : 'Mark as visited'}</button>
@@ -724,7 +732,7 @@ function renderPanelInner() {
       ${p.hours?.open && p.hours?.close ? `<div><span class="eyebrow">Hours</span><p class="plain">${p.hours.open}–${p.hours.close}${p.hours.closed.length ? ` · closed ${p.hours.closed.map(x => DAYNAMES[x]).join(', ')}` : ''}</p></div>` : ''}
       ${p.tags?.length ? `<div><span class="eyebrow">Tags</span><div class="tgs">${tagChips(p.tags)}</div></div>` : ''}
       <div class="cardfoot"><button type="button" class="linkbtn" data-edit="${esc(p.id)}">Edit details</button>
-        <span class="fine">${p.exact ? 'Exact spot' : 'Approximate spot'} · ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</span></div></div>`;
+        <span class="fine">${p.exact ? 'Exact spot' : 'Approximate spot'}</span></div></div>`;
     return;
   }
 
@@ -755,22 +763,23 @@ function renderPanelInner() {
   head.innerHTML = `<button type="button" class="back" data-back>‹ My places</button>`;
   const d = distTxt(p);
   body.innerHTML = `<form class="form" id="form" autocomplete="off">
-    <div><label class="l" for="f-name">Name</label><input type="text" id="f-name" value="${esc(p.name)}" placeholder="e.g. Hostel near Tha Phae Gate" maxlength="80" required></div>
+    <div class="nameline"><div><label class="l" for="f-name">Name</label><input type="text" id="f-name" value="${esc(p.name)}" placeholder="e.g. Hostel near Tha Phae Gate" maxlength="80" required></div>
+      <label class="favheart" for="f-fav" title="Must-go"><input type="checkbox" id="f-fav" ${p.fav ? 'checked' : ''}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5 3.9 12.6A5 5 0 0 1 12 6.4a5 5 0 0 1 8.1 6.2z"/></svg><small>Must-go</small></label></div>
     <div><span class="l" style="font-weight:800;font-size:13px;display:block;margin-bottom:5px">Type</span>
       <div class="cats">${CAT_KEYS.map(c => `<input type="radio" name="cat" id="f-cat-${c}" value="${c}" ${p.cat === c ? 'checked' : ''}><label for="f-cat-${c}">${dotHTML(c)}${CATS[c].short || CATS[c].label}</label>`).join('')}</div></div>
+    <div><span class="l">Plan for</span>
+      <div class="daychips" role="radiogroup" aria-label="Plan for which day">${['', ...Array.from({ length: Math.max(1, tripDays()) }, (_, i) => i + 1)].map(v => `<input type="radio" name="f-day" id="f-day-${v || 0}" value="${v}" ${(p.day || '') === v ? 'checked' : ''}><label for="f-day-${v || 0}"${v ? ` style="--dc:${dayColor(v)}"` : ''}>${v ? `<i></i>Day ${v}` : 'Not planned'}</label>`).join('')}</div></div>
+    <div><label class="l" for="f-note">Notes</label><textarea id="f-note" placeholder="Opening hours, what to order, price, booking ref…" maxlength="2000">${esc(p.note)}</textarea></div>
+    <details class="more"${p.exact ? '' : ' open'}><summary>More details <small>${p.exact ? 'icon, price, opening hours, tags, exact spot' : 'the spot is approximate · icon, price, hours, tags'}</small></summary>
     <div><span class="l">Icon</span>
       <div class="icons" role="radiogroup" aria-label="Icon">
         <input type="radio" name="icon" id="f-icon-auto" value="" ${!p.icon ? 'checked' : ''}><label for="f-icon-auto" title="Same as type">${dotFor({ cat: p.cat })}<span>Auto</span></label>
         ${Object.entries(ICONS).filter(([k]) => k !== p.cat).map(([k, v]) => `<input type="radio" name="icon" id="f-icon-${k}" value="${k}" ${p.icon === k ? 'checked' : ''}><label for="f-icon-${k}" title="${esc(v.label)}"><span class="dot" style="background:var(--paper-2)">${svgArt(v.art)}</span></label>`).join('')}
       </div></div>
-    <div class="two">
-      <div><label class="l" for="f-day">Plan for</label><select id="f-day">${dayOptions(p.day)}</select></div>
       <div><span class="l">Price</span><div class="seg" role="radiogroup" aria-label="Price">${PRICE.map((t, i) => `<input type="radio" name="price" id="f-price-${i}" value="${i}" ${(p.price || 0) === i ? 'checked' : ''}><label for="f-price-${i}">${i ? t : '–'}</label>`).join('')}</div></div>
-    </div>
     <div><span class="l">Opening hours <small class="opt">optional, Chiang Mai time</small></span>
       <div class="hours"><input type="time" id="f-open" value="${p.hours?.open || ''}" aria-label="Opens"><span>to</span><input type="time" id="f-close" value="${p.hours?.close || ''}" aria-label="Closes"></div>
       <div class="seg days" role="group" aria-label="Closed on">${[1, 2, 3, 4, 5, 6, 0].map(d => `<input type="checkbox" id="f-closed-${d}" value="${d}" ${p.hours?.closed?.includes(d) ? 'checked' : ''}><label for="f-closed-${d}" title="Closed on ${DAYNAMES[d]}">${DAYNAMES[d].slice(0, 2)}</label>`).join('')}<span class="segnote">closed</span></div></div>
-    <div><label class="l" for="f-note">Notes</label><textarea id="f-note" placeholder="Opening hours, what to order, price, booking ref…" maxlength="2000">${esc(p.note)}</textarea></div>
     <div><label class="l" for="f-tag">Tags</label>
       <div class="tagbox" id="tagBox"></div>
       <div class="sugs" id="tagSugs"></div></div>
@@ -783,12 +792,11 @@ function renderPanelInner() {
         <p><b>Phone:</b> in Google Maps, long-press the exact spot to drop a pin. The coordinates show in the search bar; tap to copy.</p>
         <p><b>Easiest:</b> in Google Maps tap <b>Share → Copy link</b> and paste it here.</p></details>
     </div>
-    <label class="toggle" for="f-fav"><input type="checkbox" id="f-fav" ${p.fav ? 'checked' : ''}> Must-go</label>
-    <div class="row"><button type="submit" class="btn primary">${isNew ? 'Save pin' : 'Save changes'}</button>
-      <button type="button" class="btn ghost" data-back>Cancel</button></div>
     <div class="meta"><span id="f-coords">${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</span>${d ? `<span>${d} from your stay</span>` : ''}
       <a id="f-gmaps" href="${gmapsLink(p)}" target="_blank" rel="noopener">Open in Google Maps ↗</a></div>
     ${isNew ? '' : `<div class="row" id="delRow"><button type="button" class="btn danger" data-del>Delete pin</button></div>`}
+    </details>
+    <div class="savebar"><button type="button" class="btn ghost" data-back>Cancel</button><button type="submit" class="btn primary">${isNew ? 'Save pin' : 'Save changes'}</button></div>
   </form>`;
   const f = $('#form'), nm = $('#f-name');
   renderTagEditor();
@@ -799,7 +807,7 @@ function renderPanelInner() {
     if (e.target.id === 'f-fav') { draft.fav = e.target.checked; renderMap(); }
     if (e.target.name === 'icon') { draft.icon = e.target.value || null; renderMap(); }
     if (e.target.name === 'price') draft.price = +e.target.value;
-    if (e.target.id === 'f-day') { draft.day = pickDay(e.target.value); if (draft.day) draft.order = nextOrder(draft.day, draft.id); }
+    if (e.target.name === 'f-day') { draft.day = pickDay(e.target.value); if (draft.day) draft.order = nextOrder(draft.day, draft.id); }
     if (/^f-(open|close|closed-)/.test(e.target.id)) draft.hours = cleanHours({ open: $('#f-open').value, close: $('#f-close').value,
       closed: [...document.querySelectorAll('[id^="f-closed-"]:checked')].map(x => +x.value) });
   });
@@ -811,6 +819,7 @@ function renderPanelInner() {
     if (!draft.name) { nm.focus(); toast('Give it a name first.'); return; }
     const pending = $('#f-tag')?.value.trim(); if (pending) addTag(pending);
     const saved = savePlace(draft);
+    editSnap = null;
     toast(isNew ? 'Pinned!' : 'Saved');
     bounceId = isNew ? saved.id : null;
     openDetail(saved.id, false);
@@ -974,7 +983,7 @@ function openMainMenu() {
     ${pi('theme', isNight() ? ICO.sun : ICO.moon, isNight() ? 'Day mode' : 'Night mode', themePref === 'auto' ? 'Now following this device' : 'Switch the look of the whole map')}`,
   act => {
     if (act === 'theme') { setTheme(isNight() ? 'day' : 'night', $('#menuBtn')); return; }
-    const go = kind => { draft = null; setMode('browse'); view = { kind }; renderMap(); renderPanel(); setSheet('full'); };
+    const go = kind => { if (guardEdit(() => go(kind))) return; draft = null; setMode('browse'); view = { kind }; renderMap(); renderPanel(); setSheet('full'); };
     if (act === 'essentials') openEssentials();
     else if (act === 'spend') openSpend();
     else if (act === 'bills') openBills();
@@ -1001,6 +1010,7 @@ function syncTabs() {
   $('#tabbar [data-tab="trip"]').classList.toggle('warn', sync.getStatus().state === 'error' && navigator.onLine);
 }
 function goTab(tab) {
+  if (tab !== 'add' && guardEdit(() => goTab(tab))) return;
   if (tab === 'add') { if (mode === 'adding') setMode('browse'); else openAddMenu(); return; }
   const same = currentTab() === tab && view.kind === 'list';
   closePop(); draft = null; setMode('browse');
@@ -1028,7 +1038,9 @@ function decoratePanel() {
   if (k === 'bills' || k === 'spend') {
     try { localStorage.setItem(MONEY_KEY, k); } catch {}
     const seg = `<div class="modes moneyseg" role="tablist" aria-label="Money">${[['bills', 'Shared bills'], ['spend', 'My spending']].map(([v, t]) => `<button type="button" role="tab" class="mode" data-money="${v}" aria-selected="${k === v}">${t}</button>`).join('')}</div>`;
-    if (back) back.outerHTML = seg; else $('#phead').insertAdjacentHTML('afterbegin', seg);
+    back?.remove();
+    const title = $('#phead .ptitle') || $('#phead h2');
+    if (title) title.insertAdjacentHTML('afterend', seg); else $('#phead').insertAdjacentHTML('beforeend', seg);
   } else if (back) back.textContent = TRIP_VIEWS.includes(k) ? '‹ Trip' : listMode === 'today' ? '‹ Today' : listMode === 'days' ? '‹ All days' : listMode === 'near' ? '‹ Near me' : '‹ Places';
 }
 // The Trip tab: essentials up top, then the look of the app, then the set-once things.
@@ -1158,8 +1170,10 @@ function showTips(force = false) {
 }
 
 /* ---------- day plans ---------- */
-const DAY_COLORS = ['#D2452F', '#1F7A7A', '#D9981A', '#4F8A3F', '#8E5BB5', '#D8457F', '#3F6FC9', '#A8683B'];
+const DAY_COLORS = ['#C13B26', '#1F7A7A', '#D9981A', '#4F8A3F', '#8E5BB5', '#D8457F', '#3F6FC9', '#A8683B'];
 const dayColor = d => DAY_COLORS[(d - 1) % DAY_COLORS.length];
+// Text on a day colour: dark ink on the light ones (gold, green…), white on the deep ones, so labels stay readable.
+const dayInk = d => { const h = dayColor(d), [r, g, b] = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(x => x <= .03928 ? x / 12.92 : ((x + .055) / 1.055) ** 2.4); return .2126 * r + .7152 * g + .0722 * b > .2 ? '#2E2A24' : '#fff'; };
 const tripDays = () => Math.max(trip.days, 0, ...places.map(p => p.day || 0));
 const stopsOf = d => places.filter(p => p.day === d).sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
 function bkToday() { return new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10); }
@@ -1178,11 +1192,11 @@ function daysBody(shown) {
   if (!n) return out + `<div class="empty"><p>No days yet.</p>${ro ? '' : `<p>Tap <b>+ Add day</b>, then fill each day with <b>+ Add places</b>. Or open any place and choose <b>Plan for → Day 1</b>.</p>`}</div>`;
   out += `<div class="daychips" role="group" aria-label="Show a day on the map">
     <button type="button" class="dchipbtn" data-dayfocus="" aria-pressed="${!dayFocus}">All days</button>
-    ${Array.from({ length: n }, (_, k) => k + 1).map(d => `<button type="button" class="dchipbtn" data-dayfocus="${d}" aria-pressed="${dayFocus === d}" style="--dc:${dayColor(d)}"><i></i>Day ${d}</button>`).join('')}</div>`;
+    ${Array.from({ length: n }, (_, k) => k + 1).map(d => `<button type="button" class="dchipbtn" data-dayfocus="${d}" aria-pressed="${dayFocus === d}" style="--dc:${dayColor(d)};--dt:${dayInk(d)}"><i></i>Day ${d}</button>`).join('')}</div>`;
   for (let d = 1; d <= n; d++) {
     if (dayFocus && dayFocus !== d) continue;
     const items = stopsOf(d).filter(p => shown.includes(p)), dd = dayDate(d), title = dayTitle(d);
-    out += `<div class="group day${dd.today ? ' today' : ''}" style="--dc:${dayColor(d)}">
+    out += `<div class="group day${dd.today ? ' today' : ''}" style="--dc:${dayColor(d)};--dt:${dayInk(d)}">
       <div class="dayhead">
         <span class="dnum">Day ${d}</span>${dd.text ? `<span class="ddate">${esc(dd.text)}${dd.today ? ' · <b>Today</b>' : ''}</span>` : ''}
         <span class="dcount">${items.length ? `${items.length} ${items.length === 1 ? 'stop' : 'stops'}` : 'empty'}</span>
@@ -1190,9 +1204,9 @@ function daysBody(shown) {
       ${ro ? (title ? `<div class="dtitle ro">${esc(title)}</div>` : '') : `<button type="button" class="dtitle${title ? '' : ' empty'}" data-daytitle="${d}">${title ? esc(title) : 'Name this day…'}</button>`}
       ${stopsHTML(d, items, (p, i) => itemHTML(p, `<span class="stopn">${i + 1}</span>`, ro ? '' : `<span class="mv"><button type="button" data-move="${esc(p.id)}" data-dir="-1" aria-label="Move ${esc(p.name)} earlier" ${i ? '' : 'disabled'}>↑</button><button type="button" data-move="${esc(p.id)}" data-dir="1" aria-label="Move ${esc(p.name)} later" ${i < items.length - 1 ? '' : 'disabled'}>↓</button></span>`))}
       ${items.length > 1 && dayTotal(d) ? `<p class="daytotal">${items.length} stops · ${dayTotal(d)}</p>` : ''}
-      ${items.length ? '' : `<p class="lnote">${ro ? 'Nothing planned yet.' : 'Nothing planned yet. Add places to this day.'}</p>`}
+      ${items.length ? '' : `<div class="dayempty"><b>Nothing planned yet</b><span>${ro ? 'This day is still free.' : 'Pick from your places, or leave it free'}</span>${ro ? '' : `<button type="button" class="btn" data-dayadd="${d}">+ Add places</button>`}</div>`}
       ${ro ? '' : `<div class="dayact" id="dayact-${d}">
-        <button type="button" class="tchip" data-dayadd="${d}">+ Add places</button>
+        ${items.length ? `<button type="button" class="tchip" data-dayadd="${d}">+ Add places</button>` : ''}
         ${items.length > 1 ? `<button type="button" class="tchip" data-dayfocus="${dayFocus === d ? '' : d}">${dayFocus === d ? 'Show all days' : 'Show route'}</button>` : ''}
         <button type="button" class="tclear" data-delday="${d}">Remove day</button></div>`}
     </div>`;
@@ -1303,7 +1317,7 @@ function renderSort(head, body) {
     <div><span class="eyebrow">What is it? Tap one</span>
       <div class="cats sortcats">${CAT_KEYS.filter(c => c !== 'other').map(c => `<button type="button" data-sorttype="${c}">${dotHTML(c)}${CATS[c].short || CATS[c].label}</button>`).join('')}</div></div>
     ${n ? `<div><span class="eyebrow">Plan it for a day (optional)</span>
-      <div class="daychips"><button type="button" class="dchipbtn" data-sortday="" aria-pressed="${!view.day}">No day</button>${Array.from({ length: n }, (_, k) => k + 1).map(d => `<button type="button" class="dchipbtn" data-sortday="${d}" aria-pressed="${view.day === d}" style="--dc:${dayColor(d)}"><i></i>Day ${d}</button>`).join('')}</div></div>` : ''}
+      <div class="daychips"><button type="button" class="dchipbtn" data-sortday="" aria-pressed="${!view.day}">No day</button>${Array.from({ length: n }, (_, k) => k + 1).map(d => `<button type="button" class="dchipbtn" data-sortday="${d}" aria-pressed="${view.day === d}" style="--dc:${dayColor(d)};--dt:${dayInk(d)}"><i></i>Day ${d}</button>`).join('')}</div></div>` : ''}
     <div class="cardfoot"><button type="button" class="linkbtn" data-sorttype="other">Leave as “Other”</button><button type="button" class="linkbtn" data-sortskip>Skip for now</button></div>
     <p class="fine"><a href="${gmapsLink(p)}" target="_blank" rel="noopener">Look it up on Google Maps ↗</a></p></div>`;
 }
@@ -1318,7 +1332,7 @@ function sortAdvance(done) {
   view.day = null; renderPanel(); sortFly();
 }
 const essCtx = () => ({ view, toast, copyText, rerender: renderPanel, stay: stayOf(), goButtons });
-function openEssentials() { draft = null; setMode('browse'); view = { kind: 'essentials', edit: false }; renderMap(); renderPanel(); setSheet('full'); ess.syncNow(); }
+function openEssentials() { if (guardEdit(openEssentials)) return; draft = null; setMode('browse'); view = { kind: 'essentials', edit: false }; renderMap(); renderPanel(); setSheet('full'); ess.syncNow(); }
 
 /* ---------- today ---------- */
 // Where "today" falls in the trip, in Chiang Mai time.
@@ -1342,9 +1356,27 @@ function nextCardHTML(p, idx, total) {
 }
 function dayPreviewHTML(d, label) {
   const items = stopsOf(d);
-  return `<div class="group day" style="--dc:${dayColor(d)}"><div class="dayhead"><span class="dnum">${label}</span><span class="dcount">${items.length ? `${items.length} ${items.length === 1 ? 'stop' : 'stops'}` : 'empty'}</span></div>
+  return `<div class="group day" style="--dc:${dayColor(d)};--dt:${dayInk(d)}"><div class="dayhead"><span class="dnum">${label}</span><span class="dcount">${items.length ? `${items.length} ${items.length === 1 ? 'stop' : 'stops'}` : 'empty'}</span></div>
     ${dayTitle(d) ? `<div class="dtitle ro">${esc(dayTitle(d))}</div>` : ''}
     ${items.length ? stopsHTML(d, items, (p, i) => itemHTML(p, `<span class="stopn">${i + 1}</span>`)) : `<p class="lnote">Nothing planned yet.</p>`}</div>`;
+}
+// The end of a day: once its last stop is done, the Today card becomes a small recap (stops, distance from
+// the day's route, what this device's person spent that day, must-gos ticked off) with a peek at tomorrow.
+function recapHTML(d, all, ti) {
+  const r = routeFor(all, onRouteReady);
+  const metres = r ? r.legs.reduce((t, l) => t + (l.walkM <= WALK_MAX_M ? l.walkM : l.driveM), 0) : 0;
+  const iso = (() => { const t = new Date(trip.start + 'T12:00:00Z'); t.setUTCDate(t.getUTCDate() + d - 1); return t.toISOString().slice(0, 10); })();
+  const spent = viewOnly ? '' : spend.spentOn(iso), favs = all.filter(p => p.fav);
+  const next = d < ti.n ? stopsOf(d + 1) : [];
+  const stat = (v, l) => `<div class="rstat"><b>${v}</b><span>${l}</span></div>`;
+  return `<div class="recap"><div class="rtop"><div><span class="eyebrow">Day ${d} done</span>
+      <b class="rtitle">${esc(dayTitle(d) || (all.length === 1 ? 'One stop, done' : `All ${all.length} stops`))}</b>${dayDate(d).text ? `<small>${esc(dayDate(d).text)}</small>` : ''}</div>
+      <span class="rstamp" aria-hidden="true">done!</span></div>
+    <div class="rstats">${stat(all.length, all.length === 1 ? 'stop' : 'stops')}${metres ? stat(metres < 950 ? `${Math.round(metres / 50) * 50} m` : `${(metres / 1000).toFixed(1)} km`, 'getting around') : ''}${spent ? stat(spent, 'spent today') : ''}</div>
+    ${favs.length ? `<p class="rfav">♥ ${favs.length === 1 ? 'Must-go visited' : `All ${favs.length} must-gos visited`}: ${favs.map(p => esc(p.name)).join(', ')}</p>` : ''}
+    ${next.length ? `<div class="rnext"><span class="eyebrow">Tomorrow${dayTitle(d + 1) ? ' · ' + esc(dayTitle(d + 1)) : ''}</span>
+      ${next.slice(0, 3).map(p => `<div class="rrow"><span>${esc(p.name)}</span>${p.hours?.open ? `<small>opens ${p.hours.open}</small>` : ''}</div>`).join('')}${next.length > 3 ? `<small class="rmore">and ${next.length - 3} more</small>` : ''}
+      <button type="button" class="btn primary" data-seeday="${d + 1}">See tomorrow</button></div>` : d >= ti.n ? '<p class="rfav">That was the last day of the trip.</p>' : ''}</div>`;
 }
 function todayBody() {
   const ti = todayInfo(), ro = viewOnly;
@@ -1369,17 +1401,16 @@ function todayBody() {
       <p>${dayTitle(d) ? esc(dayTitle(d)) + '. ' : ''}Pick a few places for Day ${d}, or see what is close to you.</p>
       <div class="row">${ro ? '' : `<button type="button" class="btn primary" data-dayadd="${d}">+ Add places to today</button>`}<button type="button" class="btn" data-listmode="near">Near me</button></div></div>`;
   }
-  let out = dayTitle(d) ? `<p class="todaytitle">${esc(dayTitle(d))}</p>` : '';
+  let out = dayTitle(d) && todo.length ? `<p class="todaytitle">${esc(dayTitle(d))}</p>` : '';   // the recap shows the title itself
   if (!todo.length) {
-    out += `<div class="tnote good"><b>All ${all.length} stops done</b><p>That is everything planned for today.</p>
-      ${d < ti.n && stopsOf(d + 1).length ? `<p class="fine">Tomorrow starts at ${esc(stopsOf(d + 1)[0].name)}.</p>` : ''}</div>`;
+    out += recapHTML(d, all, ti);
   } else {
     out += nextCardHTML(todo[0], all.indexOf(todo[0]), all.length);
     if (todo.length > 1) {
       const rest = todo.slice(1), r = routeFor(all, onRouteReady);
       const legBefore = p => { const i = all.indexOf(p); return r && i > 0 ? legText(r.legs[i - 1]) : ''; };
       out += `<div class="group"><h3>After that <span>${rest.length}</span></h3>` +
-        rest.map(p => (legBefore(p) ? `<div class="leg"><i></i>${legBefore(p)}</div>` : '') + itemHTML(p, `<span class="stopn" style="background:${dayColor(d)}">${all.indexOf(p) + 1}</span>`)).join('') + `</div>`;
+        rest.map(p => (legBefore(p) ? `<div class="leg"><i></i>${legBefore(p)}</div>` : '') + itemHTML(p, `<span class="stopn" style="background:${dayColor(d)};color:${dayInk(d)}">${all.indexOf(p) + 1}</span>`)).join('') + `</div>`;
     }
     if (dayTotal(d)) out += `<p class="daytotal">${all.length} stops today · ${dayTotal(d)}</p>`;
   }
@@ -1403,7 +1434,7 @@ function itemHTML(p, dist, extra = '') {
     ${dotFor(p)}
     <span style="min-width:0"><span class="nm"><span>${esc(p.name)}</span>${p.fav ? '<svg class="heart" width="13" height="13" viewBox="0 0 24 24" aria-label="Must-go"><path d="M12 21 3.5 12.7A5.2 5.2 0 0 1 12 6a5.2 5.2 0 0 1 8.5 6.7z" fill="currentColor"/></svg>' : ''}</span>
     ${p.note ? `<span class="nt">${esc(p.note)}</span>` : ''}${p.tags?.length || st || p.price ? `<span class="tgs">${st ? `<span class="os ${st.open === true ? 'is-open' : st.open === false ? 'is-closed' : ''}">${st.open === true ? 'Open' : st.open === false ? 'Closed' : 'Hours'}</span>` : ''}${p.price ? `<span class="pr">${PRICE[p.price]}</span>` : ''}${tagChips(p.tags)}</span>` : ''}</span>
-    <span class="km">${dist ? `<span>${dist}</span>` : ''}${p.day && listMode !== 'days' && listMode !== 'today' ? `<span class="tk" style="--dc:${dayColor(p.day)}">Day ${p.day}</span>` : ''}${p.visited ? '<span class="stampv" aria-label="Visited">Visited</span>' : ''}${p.exact ? '' : '<span class="approx" title="Approximate spot. Open it and paste exact coordinates.">≈ approx</span>'}</span></button>${extra}<button type="button" class="more" data-more="${esc(p.id)}" aria-label="More actions for ${esc(p.name)}" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button></div>`;
+    <span class="km">${dist ? `<span>${dist}</span>` : ''}${p.day && listMode !== 'days' && listMode !== 'today' ? `<span class="tk" style="--dc:${dayColor(p.day)};--dt:${dayInk(p.day)}">Day ${p.day}</span>` : ''}${p.visited ? '<span class="stampv" aria-label="Visited">Visited</span>' : ''}${p.exact ? '' : '<span class="approx" title="Approximate spot. Open it and paste exact coordinates.">≈ approx</span>'}</span></button>${extra}<button type="button" class="more" data-more="${esc(p.id)}" aria-label="More actions for ${esc(p.name)}" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></svg></button></div>`;
 }
 function listBody() {
   const shown = places.filter(p => filters.has(p.cat) && hasTagMatch(p) && !(hideVisited && p.visited));
@@ -1698,11 +1729,34 @@ function syncLine(st = sync.getStatus()) {
   return { cls: 'ok', txt: `Synced ${ago(st.at)}` };
 }
 function renderStatus(st) {
+  updateNet(st);
   const f = $('#pfoot'), l = syncLine(st);
   f.className = 'pfoot ' + l.cls; $('#syncTxt').textContent = l.txt;
   if (view.kind === 'sync' || view.kind === 'trip') renderPanel(); else syncTabs();
 }
 setInterval(() => { if (sync.getStatus().state === 'ok') renderStatus(sync.getStatus()); }, 30000);
+/* Phones: a small note over the map answers "did that save?" without opening anything. Offline stays up
+   until the signal is back; a sync problem stays up and opens Sync devices when tapped; after a change of
+   yours reaches the server, a brief "Synced" shows. (Desktop has the footer line instead.) */
+const netEl = $('#netpill');
+let netT = 0;
+function showNet(kind, text, ms = 0) {
+  clearTimeout(netT);
+  netEl.dataset.kind = kind; netEl.className = 'ovl netpill ' + kind;
+  netEl.innerHTML = `<b aria-hidden="true"></b><span>${text}</span>`;
+  netEl.hidden = false;
+  if (ms) netT = setTimeout(() => { netEl.hidden = true; }, ms);
+}
+function updateNet(st = sync.getStatus()) {
+  if (viewOnly) return;
+  if (!navigator.onLine) { showNet('off', 'Offline · changes are kept on this phone'); return; }
+  if (st.state === 'error') { showNet('err', 'Sync problem · tap to see why'); return; }
+  if (st.state === 'ok' && localChangeAt && Date.now() - localChangeAt < 60000) { localChangeAt = 0; showNet('ok', 'Synced', 1800); return; }
+  if (netEl.dataset.kind !== 'ok') netEl.hidden = true;
+}
+netEl.addEventListener('click', () => { const k = netEl.dataset.kind; netEl.hidden = true; if (k === 'err') { goTab('trip'); openSync(); } });
+addEventListener('online', () => updateNet());   // sync.js itself syncs again when back online
+addEventListener('offline', () => updateNet());
 function joinLink() { return `${location.origin}${location.pathname}#join=${sync.fmtCode(sync.getCode())}`; }
 function renderSyncPanel(head, body) {
   head.innerHTML = `<button type="button" class="back" data-back>‹ My places</button><h2 style="margin-top:6px">Sync devices</h2>`;
@@ -1919,8 +1973,38 @@ function keepVisible(ll) {
 map.on('dragstart', () => { if (isMobile() && panelEl.dataset.sheet === 'full') setSheet('half'); });
 
 /* ---------- flows ---------- */
-function openEditor(p) { draft = { ...p, tags: [...(p.tags || [])] }; view = { kind: 'edit' }; setMode('browse'); renderMap(); renderPanel(); setSheet('full'); }
+function openEditor(p) { draft = { ...p, tags: [...(p.tags || [])] }; view = { kind: 'edit' }; setMode('browse'); renderMap(); renderPanel(); setSheet('full'); editSnap = editSig(); }
+// Leaving the edit form with unsaved changes asks first (the user's choice): Keep editing / Discard.
+// Cancel inside the form and Save don't ask. editSnap is the form as it opened; null = nothing to protect.
+let editSnap = null;
+function editSig() {
+  const f = $('#form');
+  return JSON.stringify(draft) + '|' + (f ? [...f.elements].map(e => e.type === 'checkbox' || e.type === 'radio' ? (e.checked ? 1 : 0) : e.value).join('\u0001') : '');
+}
+const editDirty = () => view.kind === 'edit' && !!draft && editSnap != null && editSig() !== editSnap;
+function guardEdit(go) {
+  if (!editDirty()) return false;
+  askDiscard(() => { editSnap = null; draft = null; go(); });
+  return true;
+}
+function askDiscard(onDiscard) {
+  document.querySelector('.askwrap')?.remove();
+  const el = document.createElement('div');
+  el.className = 'askwrap';
+  el.innerHTML = `<div class="askbox" role="alertdialog" aria-modal="true" aria-labelledby="askT" aria-describedby="askP">
+    <p class="askt" id="askT">Discard your changes?</p>
+    <p class="askp" id="askP">Your edits to “${esc(shortName(draft?.name || 'this place'))}” aren’t saved yet.</p>
+    <div class="row"><button type="button" class="btn primary" data-ask="keep">Keep editing</button><button type="button" class="btn ghost askno" data-ask="discard">Discard</button></div></div>`;
+  const close = discard => { el.remove(); document.removeEventListener('keydown', esc_); if (discard) onDiscard(); };
+  const esc_ = e => { if (e.key === 'Escape') close(false); };
+  el.addEventListener('click', e => { const b = e.target.closest('[data-ask]'); if (b) close(b.dataset.ask === 'discard'); else if (e.target === el) close(false); });
+  document.addEventListener('keydown', esc_);
+  document.body.appendChild(el);
+  el.querySelector('[data-ask="keep"]').focus({ preventScroll: true });
+}
+window.addEventListener('beforeunload', e => { if (editDirty()) { e.preventDefault(); e.returnValue = ''; } });
 function openDetail(id, fly = true) {
+  if (guardEdit(() => openDetail(id, fly))) return;
   const p = places.find(x => x.id === id); if (!p) return;
   draft = null; setMode('browse');
   view = { kind: 'detail', id };
@@ -1934,6 +2018,7 @@ function closeEditor() {
   draft = null; view = { kind: toTrip ? 'trip' : 'list' }; setMode('browse'); renderMap(); renderPanel(); setSheet(toTrip ? 'full' : 'half');
 }
 function openPreview(item, fly = true) {
+  if (guardEdit(() => openPreview(item, fly))) return;
   draft = null; setMode('browse');
   view = { kind: 'preview', item };
   bounceId = '__preview';
@@ -2308,19 +2393,19 @@ function startAdding() {
 }
 $('#addBtn').addEventListener('click', () => { if (mode === 'adding') { setMode('browse'); return; } openAddMenu(); });
 $('#bannerCancel').addEventListener('click', () => setMode('browse'));
-const openSync = () => { draft = null; setMode('browse'); view = { kind: 'sync' }; renderMap(); renderPanel(); setSheet('half'); };
+const openSync = () => { if (guardEdit(openSync)) return; draft = null; setMode('browse'); view = { kind: 'sync' }; renderMap(); renderPanel(); setSheet('half'); };
 $('#pfoot').addEventListener('click', openSync);
 // Personal spending log: private to this device, never synced or shared (js/expenses.js).
 const spendCtx = () => ({ view, toast, toastAction, copyText, rerender: renderPanel, openBills: () => openBills(), moveSplit });
 // Shared bills for the two travellers (js/bills.js): synced with the trip code, encrypted.
 const billsCtx = () => ({ view, toast, toastAction, rerender: renderPanel, cats: spend.XCATS, celebrate });
-function openBills() { draft = null; setMode('browse'); view = { kind: 'bills', edit: null }; navMap(); renderPanel(); setSheet('full'); setTimeout(() => bills.syncNow(), SLIDE_MS + 60); }
+function openBills() { if (guardEdit(openBills)) return; draft = null; setMode('browse'); view = { kind: 'bills', edit: null }; navMap(); renderPanel(); setSheet('full'); setTimeout(() => bills.syncNow(), SLIDE_MS + 60); }
 // Old "split in two" spending entries become shared bills paid by this device's person.
 function moveSplit(list) {
   if (!bills.profile()) { openBills(); toast('First say who’s using this device, then move them'); return false; }
   return bills.addMine(list) > 0;
 }
-const openSpend = () => { draft = null; setMode('browse'); view = { kind: 'spend', edit: null }; navMap(); renderPanel(); setSheet('full'); };
+const openSpend = () => { if (guardEdit(openSpend)) return; draft = null; setMode('browse'); view = { kind: 'spend', edit: null }; navMap(); renderPanel(); setSheet('full'); };
 document.querySelector('.panel').addEventListener('submit', e => {
   if (e.target.matches('[data-xform]')) { e.preventDefault(); if (view.kind === 'spend') spend.onSubmit(e.target, spendCtx()); }
   if (e.target.matches('[data-bform], [data-bsetup]')) { e.preventDefault(); if (view.kind === 'bills') bills.onSubmit(e.target, billsCtx()); }
@@ -2332,7 +2417,9 @@ $('#layersBtn').addEventListener('click', openLayersMenu);
 $('#menuBtn').addEventListener('click', openMainMenu);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && mode !== 'browse') setMode('browse'); });
 
+addEventListener('keydown', e => { if (e.key === 'Escape' && !document.querySelector('.askwrap')) $('#panel > .qsheet-wrap [data-xcancel], #panel > .qsheet-wrap [data-bcancel]')?.click(); });
 document.querySelector('.panel').addEventListener('click', e => {
+  if (e.target.matches?.('.qsheet-wrap')) { e.target.querySelector('[data-xcancel], [data-bcancel]')?.click(); return; }
   const t = e.target;
   if (view.kind === 'spend' && spend.onClick(t, spendCtx())) return;
   const mny = t.closest('[data-money]');
@@ -2385,6 +2472,8 @@ document.querySelector('.panel').addEventListener('click', e => {
   if (t.closest('[data-dpsave]')) { saveDayPick(); return; }
   if (t.closest('[data-hidevisited]')) { hideVisited = !hideVisited; renderMap(); renderPanel(); return; }
   if (t.closest('[data-locate]')) { startLocate(); return; }
+  const sd = t.closest('[data-seeday]');
+  if (sd) { applyListMode('days'); dayFocus = +sd.dataset.seeday; navMap(); renderPanel(); return; }
   const df = t.closest('[data-dayfocus]');
   if (df) {
     dayFocus = df.dataset.dayfocus ? +df.dataset.dayfocus : null;
@@ -2432,7 +2521,7 @@ document.querySelector('.panel').addEventListener('click', e => {
   if (ed) { const p = places.find(x => x.id === ed.dataset.edit); if (p) openEditor({ ...p }); return; }
   const o = t.closest('[data-open]');
   if (o) { openDetail(o.dataset.open, true); return; }
-  if (t.closest('[data-back]')) { closeEditor(); return; }
+  if (t.closest('[data-back]')) { if (!t.closest('.form') && guardEdit(closeEditor)) return; editSnap = null; closeEditor(); return; }
   if (t.closest('[data-loc]')) { applyLoc(); return; }
   if (t.closest('[data-adopt]') && view.kind === 'preview') {
     const i = view.item;

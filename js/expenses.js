@@ -5,7 +5,7 @@
 // Entries are encrypted on the device (AES-GCM, key derived from the code) before upload,
 // and stored under a namespace also derived from the code, so the server holds only
 // scrambled text and never sees the code. Same trip_get/trip_put functions as the pins.
-import { rpc, isConfigured } from './sync.js?v=202611171143';
+import { rpc, isConfigured } from './sync.js?v=202611182148';
 
 const KEY = 'cm-trip-map-expenses';
 const SET_KEY = 'cm-trip-map-expenses-set';
@@ -123,7 +123,8 @@ export function render(head, body, view) {
   const pct = v => Math.min(100, Math.max(0, v / (budget || 1) * 100)).toFixed(1);
 
   body.innerHTML = `<div class="form spend">
-    <div class="xtotal${budget && left < 0 ? ' over' : ''}"><span>Spent so far${budget ? ` <em>of ${rm(budget)}</em>` : ''}</span><b>${rm(spent)}</b>
+    <div class="xtotal${budget && left < 0 ? ' over' : ''}"><div class="xtop"><div><span>Spent so far${budget ? ` <em>of ${rm(budget)}</em>` : ''}</span><b>${rm(spent)}</b></div>
+      <button type="button" class="btn primary xaddbtn" data-xadd>+ Add</button></div>
       ${budget ? `<i class="xbar" role="img" aria-label="${pct(spent)}% of budget spent"><u style="width:${pct(projected)}%"></u><b style="width:${pct(spent)}%"></b></i>
         <small><strong>${left >= 0 ? `${rm(left)} left` : `${rm(-left)} over budget`}</strong>${planItems.length ? ` · with what's planned: ${rm(projected)} (${over ? `${rm(projected - budget)} over` : `${rm(budget - projected)} spare`})` : ''}</small>` : ''}
       <small>${spentItems.length ? `${spentItems.length} ${spentItems.length === 1 ? 'entry' : 'entries'}${fromBills.length ? `, ${rm(sum(fromBills))} from shared bills` : ''}` : 'Nothing spent yet'}${!budget && planItems.length ? ` · planned total ${rm(projected)}` : ''}${hasTHB ? ` · baht at ${num(rate, 2)} per RM` : ''}</small></div>
@@ -132,22 +133,6 @@ export function render(head, body, view) {
     ${oldSplit.length ? `<div class="tnote"><b>${oldSplit.length} ${oldSplit.length === 1 ? 'entry is' : 'entries are'} marked “split in two”</b>
       <p>Bills you split now live in Shared bills, which works out who owes who. Move ${oldSplit.length === 1 ? 'it' : 'them'} there as paid by you, split evenly. Your half still counts here.</p>
       <div class="row"><button type="button" class="btn" data-xmove>Move to Shared bills</button></div></div>` : ''}
-    <form class="xadd" data-xform novalidate>
-      <span class="l">${editing ? 'Edit entry' : 'Add spending'}</span>
-      <div class="xline">
-        <input class="xin" id="x-amount" type="text" inputmode="decimal" placeholder="Amount" value="${esc(f.amount)}" aria-label="Amount" autocomplete="off">
-        <select class="xin" id="x-cur" aria-label="Currency"><option value="THB"${f.cur === 'THB' ? ' selected' : ''}>฿ Baht</option><option value="MYR"${f.cur === 'MYR' ? ' selected' : ''}>RM Ringgit</option></select>
-      </div>
-      <input class="xin" id="x-what" type="text" placeholder="What was it? e.g. khao soi" value="${esc(f.what)}" maxlength="80" aria-label="What was it">
-      <div class="xline">
-        <select class="xin" id="x-cat" aria-label="Category">${Object.keys(XCATS).map(k => `<option value="${k}"${f.cat === k ? ' selected' : ''}>${XCATS[k].label}</option>`).join('')}</select>
-        <input class="xin" id="x-date" type="date" value="${esc(f.date)}" aria-label="Date">
-      </div>
-      <label class="xchk"><input type="checkbox" id="x-plan"${f.plan ? ' checked' : ''}><span>Planned, not spent yet <small>an estimate for the budget</small></span></label>
-      <label class="xchk xsplit"><input type="checkbox" id="x-shared"${f.shared && f.plan ? ' checked' : ''}><span>We’ll split this <small>type the full estimate, half counts as yours</small></span></label>
-      <div class="row"><button type="submit" class="btn primary">${editing ? 'Save changes' : 'Add'}</button>${editing ? '<button type="button" class="btn ghost" data-xcancel>Cancel</button>' : ''}</div>
-      ${editing ? '' : '<p class="fine">Paid for something you’re splitting? <button type="button" class="linkbtn sm" data-xbills>Add it in Shared bills</button> and your part shows up here.</p>'}
-    </form>
 
     ${dates.map(d => {
       const rows = spentItems.filter(x => x.date === d).sort((a, b) => b.createdAt - a.createdAt);
@@ -164,7 +149,28 @@ export function render(head, body, view) {
     </div>
     ${syncHTML()}
     <p class="fine">Your spending is never shared with the trip code, the pins Export file or view-only maps.${getCode() ? '' : ' Right now it is only on this device, so save a CSV now and then as a backup.'}</p>
-  </div>`;
+  </div>${view.adding || editing ? sheetHTML(f, editing) : ''}`;
+}
+// Adding or editing happens in a sheet over the page (app.js lifts .qsheet-wrap out of the list so it covers the panel):
+// amount first with the number keyboard, currency and category one tap each, today's date already set.
+function sheetHTML(f, editing) {
+  return `<div class="qsheet-wrap form spend"><form class="qsheet xadd" data-xform novalidate role="dialog" aria-modal="true" aria-labelledby="x-sheet-t">
+    <div class="qhead"><span class="qt" id="x-sheet-t">${editing ? 'Edit entry' : 'Add spending'}</span><button type="button" class="qx" data-xcancel aria-label="Close">×</button></div>
+    <div class="qamt"><input class="xin qbig" id="x-amount" type="text" inputmode="decimal" placeholder="0" value="${esc(f.amount)}" aria-label="Amount" autocomplete="off">
+      <div class="qchips" role="radiogroup" aria-label="Currency">${[['THB', '฿ Baht'], ['MYR', 'RM']].map(([v, t]) => `<label><input type="radio" name="x-cur" value="${v}"${f.cur === v ? ' checked' : ''}><span>${t}</span></label>`).join('')}</div></div>
+    <div class="qchips wrap" role="radiogroup" aria-label="Category">${Object.keys(XCATS).map(k => `<label><input type="radio" name="x-cat" value="${k}"${f.cat === k ? ' checked' : ''}><span>${XCATS[k].label}</span></label>`).join('')}</div>
+    <input class="xin" id="x-what" type="text" placeholder="What was it? (optional)" value="${esc(f.what)}" maxlength="80" aria-label="What was it">
+    <label class="qdate"><span>Date</span><input class="xin" id="x-date" type="date" value="${esc(f.date)}"></label>
+    <label class="xchk"><input type="checkbox" id="x-plan"${f.plan ? ' checked' : ''}><span>Planned, not spent yet <small>an estimate for the budget</small></span></label>
+    <label class="xchk xsplit"><input type="checkbox" id="x-shared"${f.shared && f.plan ? ' checked' : ''}><span>We’ll split this <small>type the full estimate, half counts as yours</small></span></label>
+    <div class="row qbtns"><button type="button" class="btn ghost" data-xcancel>Cancel</button><button type="submit" class="btn primary">${editing ? 'Save changes' : 'Add'}</button></div>
+    ${editing ? '' : '<p class="fine">Paid for something you’re splitting? <button type="button" class="linkbtn sm" data-xbills>Add it in Shared bills</button> and your part shows up here.</p>'}
+  </form></div>`;
+}
+// What this device's person spent on one day, for the end-of-day recap ('' when nothing).
+export function spentOn(iso) {
+  const list = [...items.filter(x => !x.plan), ...billRows()].filter(x => x.date === iso);
+  return list.length ? rm(sum(list)) : '';
 }
 
 const parseNum = s => +String(s).replace(/[,\s]/g, '').replace(/^(rm|฿)/i, '');
@@ -175,11 +181,12 @@ export function onSubmit(form, ctx) {
   const amount = parseNum($('#x-amount').value);
   if (!isFinite(amount) || amount <= 0) { ctx.toast('Type an amount first'); $('#x-amount').focus(); return true; }
   const prev = ctx.view.edit ? items.find(x => x.id === ctx.view.edit) : null;
-  const x = clean({ id: prev?.id, createdAt: prev?.createdAt, amount, cur: $('#x-cur').value, what: $('#x-what').value, cat: $('#x-cat').value, date: $('#x-date').value, shared: $('#x-plan').checked ? $('#x-shared').checked : !!(prev && prev.shared && !prev.plan), plan: $('#x-plan').checked, updatedAt: Date.now() });
+  const pick = n => form.querySelector(`[name="${n}"]:checked`)?.value;
+  const x = clean({ id: prev?.id, createdAt: prev?.createdAt, amount, cur: pick('x-cur') || lastCur, what: $('#x-what').value, cat: pick('x-cat') || 'misc', date: $('#x-date').value, shared: $('#x-plan').checked ? $('#x-shared').checked : !!(prev && prev.shared && !prev.plan), plan: $('#x-plan').checked, updatedAt: Date.now() });
   if (!x) return true;
   items = prev ? items.map(y => (y.id === prev.id ? x : y)) : [...items, x];
   lastCur = x.cur;
-  ctx.view.edit = null;
+  ctx.view.edit = null; ctx.view.adding = false;
   ctx.toast(persist() ? (prev ? 'Saved' : x.plan ? `Planned ${money(x)}` : `Added ${money(x)}`) : 'Couldn’t save in this browser');
   ctx.rerender();
   return true;
@@ -187,7 +194,8 @@ export function onSubmit(form, ctx) {
 
 // Returns true when the click was for the spending panel.
 export function onClick(t, ctx) {
-  if (t.closest('[data-xbills]')) { ctx.openBills(); return true; }
+  if (t.closest('[data-xbills]')) { ctx.view.adding = false; ctx.openBills(); return true; }
+  if (t.closest('[data-xadd]')) { ctx.view.adding = true; ctx.view.edit = null; ctx.rerender(); document.querySelector('#x-amount')?.focus(); return true; }
   if (t.closest('[data-xmove]')) {
     const old = items.filter(x => x.shared && !x.plan);
     if (!old.length || !ctx.moveSplit(old)) return true;   // moveSplit explains itself when it can't
@@ -197,8 +205,8 @@ export function onClick(t, ctx) {
     return true;
   }
   const ed = t.closest('[data-xedit]');
-  if (ed) { ctx.view.edit = ed.dataset.xedit; ctx.rerender(); document.querySelector('#pbody').scrollTop = 0; document.querySelector('#x-amount')?.focus(); return true; }
-  if (t.closest('[data-xcancel]')) { ctx.view.edit = null; ctx.rerender(); return true; }
+  if (ed) { ctx.view.edit = ed.dataset.xedit; ctx.view.adding = false; ctx.rerender(); document.querySelector('#x-amount')?.focus(); return true; }
+  if (t.closest('[data-xcancel]')) { ctx.view.edit = null; ctx.view.adding = false; ctx.rerender(); return true; }
   const del = t.closest('[data-xdel]');
   if (del) {
     const x = items.find(y => y.id === del.dataset.xdel); if (!x) return true;
