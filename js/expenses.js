@@ -5,7 +5,7 @@
 // Entries are encrypted on the device (AES-GCM, key derived from the code) before upload,
 // and stored under a namespace also derived from the code, so the server holds only
 // scrambled text and never sees the code. Same trip_get/trip_put functions as the pins.
-import { rpc, isConfigured } from './sync.js?v=202611182148';
+import { rpc, isConfigured, syncRows, onSyncTick } from './sync.js?v=202611190007';
 
 const KEY = 'cm-trip-map-expenses';
 const SET_KEY = 'cm-trip-map-expenses-set';
@@ -279,7 +279,7 @@ export function getCode() { const c = read(CODE_KEY, ''); return typeof c === 's
 function newCode() { return [...crypto.getRandomValues(new Uint8Array(24))].map(b => ALPHABET[b % ALPHABET.length]).join(''); }
 const joinLink = () => `${location.origin}${location.pathname}#spend=${fmtCode(getCode())}`;
 
-let hooks = null, timer = null, poll = null, running = false, again = false;
+let hooks = null, timer = null, running = false, again = false;
 let status = { state: 'off', at: 0, msg: '' };
 function setStatus(state, msg = '') {
   status = { state, at: state === 'ok' ? Date.now() : status.at, msg };
@@ -293,15 +293,14 @@ function setCode(c) {
   const n = normCode(c);
   if (n.length < 20 || !canSync()) return false;
   write(CODE_KEY, n); write(KNOWN_KEY, {});
-  syncNow(); startPolling();
+  syncNow();
   return true;
 }
 function clearCode() {
   try { localStorage.removeItem(CODE_KEY); localStorage.removeItem(KNOWN_KEY); } catch {}
-  clearInterval(poll); poll = null; status = { state: 'off', at: 0, msg: '' };
+  status = { state: 'off', at: 0, msg: '' };
 }
 function schedule(ms = 800) { if (!canSync() || !getCode() || !hooks) return; clearTimeout(timer); timer = setTimeout(syncNow, ms); }
-function startPolling() { clearInterval(poll); poll = setInterval(() => { if (document.visibilityState === 'visible') syncNow(); }, 30000); }
 
 // Both the storage namespace and the encryption key come from the code, so the server gets neither the code nor readable data.
 const te = new TextEncoder(), td = new TextDecoder();
@@ -336,46 +335,17 @@ export async function syncNow() {
   running = true; setStatus('syncing');
   try {
     const { ns, key } = await keysFor(code);
-    const rows = await rpc('trip_get', { p_trip: ns });
-    const local = new Map(items.map(x => [x.id, x]));
-    if (rateAt) local.set(RATE_ID, { id: RATE_ID, rate, budget, updatedAt: rateAt });
-    const tombs = read(TOMB_KEY, {}), known = read(KNOWN_KEY, {});
-    let changed = false;
-    for (const r of Array.isArray(rows) ? rows : []) {
-      const lp = local.get(r.id);
-      const lu = Math.max(lp ? lp.updatedAt || 1 : 0, tombs[r.id] || 0);
-      if (r.updated_at > lu || (r.updated_at === lu && !(r.id in known))) {
-        if (r.deleted) { if (local.delete(r.id)) changed = true; tombs[r.id] = r.updated_at; }
-        else if (r.data?.ct) {
-          const obj = await unseal(key, r.id, r.data);
-          if (obj) { local.set(r.id, { ...obj, id: r.id, updatedAt: r.updated_at }); delete tombs[r.id]; changed = true; }
-        }
-      }
-      known[r.id] = r.updated_at;
-    }
-    const out = [];
-    for (const x of local.values()) {
-      const u = x.updatedAt || 1;
-      if (u > (known[x.id] || 0)) out.push({ id: x.id, data: await seal(key, x.id, x), deleted: false, updated_at: u });
-    }
-    for (const [id, ts] of Object.entries(tombs)) {
-      if (!local.has(id) && ts > (known[id] || 0)) out.push({ id, data: null, deleted: true, updated_at: ts });
-    }
-    for (let i = 0; i < out.length; i += 400) {
-      const chunk = out.slice(i, i + 400);
-      await rpc('trip_put', { p_trip: ns, p_rows: chunk });
-      for (const r of chunk) known[r.id] = r.updated_at;
-    }
-    for (const id of Object.keys(tombs)) if (known[id] >= tombs[id]) delete tombs[id];
-    write(TOMB_KEY, tombs); write(KNOWN_KEY, known);
-    if (getCode() !== code) return;   // unlinked while this was running
-    if (changed) {
-      const rr = local.get(RATE_ID);
-      if (rr && +rr.rate > 0) { rate = +rr.rate; rateAt = rr.updatedAt; budget = +rr.budget > 0 ? +rr.budget : 0; }
-      local.delete(RATE_ID);
-      items = [...local.values()].map(clean).filter(Boolean);
-      store(); hooks?.onChange?.();
-    }
+    await syncRows({ ns, tombKey: TOMB_KEY, known: read(KNOWN_KEY, {}), saveKnown: k => write(KNOWN_KEY, k),
+      get: () => (rateAt ? [...items, { id: RATE_ID, rate, budget, updatedAt: rateAt }] : items),
+      put: rows => {
+        if (getCode() !== code) return;   // unlinked while this was running
+        const rr = rows.find(x => x.id === RATE_ID);
+        if (rr && +rr.rate > 0) { rate = +rr.rate; rateAt = rr.updatedAt; budget = +rr.budget > 0 ? +rr.budget : 0; }
+        items = rows.filter(x => x.id !== RATE_ID).map(clean).filter(Boolean);
+        store(); hooks?.onChange?.();
+      },
+      open: (id, d) => (d.ct ? unseal(key, id, d) : null),
+      seal: (id, x) => seal(key, id, x) });
     setStatus('ok');
   } catch (e) {
     const offline = e.name === 'AbortError' || e instanceof TypeError || !navigator.onLine;
@@ -390,15 +360,14 @@ export async function syncNow() {
 // h.onChange: another device changed the log. h.onJoined: this device was just linked by a #spend= link.
 export function startSync(h) {
   hooks = h;
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
-  window.addEventListener('online', () => syncNow());
+  onSyncTick(syncNow);
   if (addFromLink()) { h.onPrefill?.(); schedule(1500); }
   const m = location.hash.match(/^#spend=([A-Za-z0-9-]+)$/);
   if (m) {
     history.replaceState(null, '', location.pathname + location.search);   // keep the secret out of the address bar
     if (normCode(m[1]) !== getCode() && setCode(m[1])) { h.onJoined?.(); return; }
   }
-  if (canSync() && getCode()) { syncNow(); startPolling(); }
+  if (canSync() && getCode()) syncNow();
 }
 
 // Re-render without losing what is being typed in the add form.

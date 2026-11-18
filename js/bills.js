@@ -7,7 +7,7 @@
 // Sync: every bill is encrypted in the browser with a key derived from the trip code and
 // stored under a separate, derived namespace. So devices with the trip code share the bills,
 // the server can't read them, and view-only links never include them.
-import { rpc, isConfigured, getCode } from './sync.js?v=202611182148';
+import { rpc, isConfigured, getCode, syncRows, onSyncTick } from './sync.js?v=202611190007';
 
 const KEY = 'cm-trip-map-bills';
 const SET_KEY = 'cm-trip-map-bills-set';       // { names: [a, b], rate, updatedAt }
@@ -350,7 +350,7 @@ export function keepForm(rerender) {
 }
 
 /* ---------- encrypted sync between devices that share the trip code ---------- */
-let hooks = null, timer = null, poll = null, running = false, again = false;
+let hooks = null, timer = null, running = false, again = false;
 let status = { state: 'off', msg: '' };
 function setStatus(state, msg = '') {
   status = { state, msg };
@@ -389,47 +389,20 @@ export async function syncNow() {
   const code = getCode();
   try {
     const { ns, key } = await keysFor(code);
-    const rows = await rpc('trip_get', { p_trip: ns });
-    const local = new Map(items.map(x => [x.id, x]));
-    if (set.updatedAt) local.set(SET_ID, { ...set, id: SET_ID });
-    const tombs = read(TOMB_KEY, {}), k0 = read(KNOWN_KEY, null);
-    const known = k0 && k0.ns === ns && k0.map ? k0.map : {};   // a different trip code starts from scratch
-    let changed = false;
-    for (const r of Array.isArray(rows) ? rows : []) {
-      const lp = local.get(r.id);
-      const lu = Math.max(lp ? lp.updatedAt || 1 : 0, tombs[r.id] || 0);
-      if (r.updated_at > lu || (r.updated_at === lu && !(r.id in known))) {
-        if (r.deleted) { if (local.delete(r.id)) changed = true; tombs[r.id] = r.updated_at; }
-        else if (r.data?.ct) {
-          const obj = await unseal(key, r.id, r.data);
-          if (obj) { local.set(r.id, { ...obj, id: r.id, updatedAt: r.updated_at }); delete tombs[r.id]; changed = true; }
-        }
-      }
-      known[r.id] = r.updated_at;
-    }
-    const out = [];
-    for (const x of local.values()) {
-      const u = x.updatedAt || 1;
-      if (u > (known[x.id] || 0)) out.push({ id: x.id, data: await seal(key, x.id, x), deleted: false, updated_at: u });
-    }
-    for (const [id, ts] of Object.entries(tombs)) {
-      if (!local.has(id) && ts > (known[id] || 0)) out.push({ id, data: null, deleted: true, updated_at: ts });
-    }
-    for (let i = 0; i < out.length; i += 400) {
-      const chunk = out.slice(i, i + 400);
-      await rpc('trip_put', { p_trip: ns, p_rows: chunk });
-      for (const r of chunk) known[r.id] = r.updated_at;
-    }
-    for (const id of Object.keys(tombs)) if (known[id] >= tombs[id]) delete tombs[id];
-    write(TOMB_KEY, tombs); write(KNOWN_KEY, { ns, map: known });
-    if (getCode() !== code) return;   // the trip code changed while this was running
-    if (changed) {
-      const s = local.get(SET_ID);
-      if (s) set = cleanSet(s);
-      local.delete(SET_ID);
-      items = [...local.values()].map(clean).filter(Boolean);
-      fixMe(); store(); hooks?.onChange?.();
-    }
+    const k0 = read(KNOWN_KEY, null);
+    await syncRows({ ns, tombKey: TOMB_KEY,
+      known: k0 && k0.ns === ns && k0.map ? k0.map : {},   // a different trip code starts from scratch
+      saveKnown: map => write(KNOWN_KEY, { ns, map }),
+      get: () => (set.updatedAt ? [...items, { ...set, id: SET_ID }] : items),
+      put: rows => {
+        if (getCode() !== code) return;   // the trip code changed while this was running
+        const s0 = rows.find(x => x.id === SET_ID);
+        if (s0) set = cleanSet(s0);
+        items = rows.filter(x => x.id !== SET_ID).map(clean).filter(Boolean);
+        fixMe(); store(); hooks?.onChange?.();
+      },
+      open: (id, d) => (d.ct ? unseal(key, id, d) : null),
+      seal: (id, x) => seal(key, id, x) });
     setStatus('ok');
   } catch (e) {
     const offline = e.name === 'AbortError' || e instanceof TypeError || !navigator.onLine;
@@ -445,8 +418,6 @@ function schedule(ms = 800) { hooks?.onChange?.(true); if (!canSync()) return; c
 // h.onChange(local): bills changed (local = by this device, so only other panels need a refresh).
 export function startSync(h) {
   hooks = h;
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
-  window.addEventListener('online', () => syncNow());
-  clearInterval(poll); poll = setInterval(() => { if (document.visibilityState === 'visible') syncNow(); }, 30000);
+  onSyncTick(syncNow);
   syncNow();
 }

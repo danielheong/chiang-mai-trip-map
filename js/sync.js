@@ -2,7 +2,7 @@
 // Each pin is one row keyed by (trip code, pin id). The newest edit wins per pin;
 // deletions are kept as "deleted" rows so other devices remove the pin too.
 // Works offline: pins always save locally first and sync when a connection is back.
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611182148';
+import { SUPABASE_URL, SUPABASE_KEY } from './config.js?v=202611190007';
 
 const CODE_KEY = 'cm-trip-map-sync-code';
 const TOMB_KEY = 'cm-trip-map-deleted';     // { id: deletedAtMs }
@@ -13,7 +13,7 @@ const POLL_MS = 30000;
 const read = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v ?? d; } catch { return d; } };
 const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 
-let hooks = null, timer = null, poll = null, running = false, again = false;
+let hooks = null, timer = null, running = false, again = false;
 let status = { state: 'off', at: 0, msg: '' };
 
 export const isConfigured = () => !!(SUPABASE_URL && SUPABASE_KEY);
@@ -29,12 +29,12 @@ export function setCode(c) {
   const n = normCode(c);
   if (n.length < 16) return false;
   write(CODE_KEY, n); write(KNOWN_KEY, {});
-  setStatus('syncing'); syncNow(); startPolling();
+  setStatus('syncing'); syncNow();
   return true;
 }
 export function clearCode() {
   try { localStorage.removeItem(CODE_KEY); localStorage.removeItem(KNOWN_KEY); } catch {}
-  stopPolling(); setStatus('off');
+  setStatus('off');
 }
 export function markDeleted(id) { const t = read(TOMB_KEY, {}); t[id] = Date.now(); write(TOMB_KEY, t); }
 export function forgetDeleted(id) { const t = read(TOMB_KEY, {}); if (id in t) { delete t[id]; write(TOMB_KEY, t); } }
@@ -58,44 +58,79 @@ export async function rpc(fn, body) {
   } finally { clearTimeout(t); }
 }
 
-// Pull everything for this trip, merge, then push whatever this device has that's newer.
+/* ---------- shared by pins, shared bills and private spending ----------
+   Newest edit wins per row; deletes are kept as tombstones until the server has them. The network is awaited
+   first; what the server sent is then applied to the data as it is *now* (re-read through get(), tombstones
+   re-read too), so an edit, add or delete made while a sync was running stays as it is and goes up next round.
+   (Before 18 Nov 2026 each store wrote back a snapshot taken before the network wait, which could undo such
+   changes or bring a deleted item back.)
+   o = { ns, get, put, tombKey, known, saveKnown, open?, seal? }
+     get(): the store's rows now ([{ id, updatedAt, … }]); put(rows): replace the store with these rows;
+     known: { id: updated_at the server has } (updated in place); open/seal: decrypt/encrypt a row's data. */
+export async function syncRows(o) {
+  const open = o.open || ((id, d) => d), seal = o.seal || ((id, x) => x), known = o.known;
+  const ts = x => (x ? x.updatedAt || x.createdAt || 1 : 0);
+  const rows = await rpc('trip_get', { p_trip: o.ns });
+  const snap = new Map(o.get().map(x => [x.id, x])), tombs0 = read(o.tombKey, {});
+  const incoming = [];
+  for (const r of Array.isArray(rows) ? rows : []) {
+    const lu = Math.max(ts(snap.get(r.id)), tombs0[r.id] || 0);
+    const tie = r.updated_at === lu && !(r.id in known);   // on a tie the first time this device sees a row, the server's copy wins
+    if (r.updated_at > lu || tie) {
+      if (r.deleted) incoming.push({ id: r.id, at: r.updated_at, tie, del: true });
+      else if (r.data && typeof r.data === 'object') {
+        const obj = await open(r.id, r.data);
+        if (obj) incoming.push({ id: r.id, at: r.updated_at, tie, obj: { ...obj, id: r.id, updatedAt: r.updated_at } });
+      }
+    }
+    known[r.id] = r.updated_at;
+  }
+  const out = [];
+  for (const x of snap.values()) if (ts(x) > (known[x.id] || 0)) out.push({ id: x.id, data: await seal(x.id, x), deleted: false, updated_at: ts(x) });
+  for (const [id, at] of Object.entries(tombs0)) if (!snap.has(id) && at > (known[id] || 0)) out.push({ id, data: null, deleted: true, updated_at: at });
+  for (let i = 0; i < out.length; i += 400) {
+    const chunk = out.slice(i, i + 400);
+    await rpc('trip_put', { p_trip: o.ns, p_rows: chunk });
+    for (const r of chunk) known[r.id] = r.updated_at;
+  }
+  // No awaits from here on: apply to the current data.
+  const cur = new Map(o.get().map(x => [x.id, x])), tombs = read(o.tombKey, {});
+  let changed = false;
+  for (const c of incoming) {
+    const lu = Math.max(ts(cur.get(c.id)), tombs[c.id] || 0);
+    if (!(c.at > lu || (c.tie && c.at === lu))) continue;   // changed on this device meanwhile: keep it
+    if (c.del) { if (cur.delete(c.id)) changed = true; tombs[c.id] = c.at; }
+    else { cur.set(c.id, c.obj); delete tombs[c.id]; changed = true; }
+  }
+  for (const id of Object.keys(tombs)) if (known[id] >= tombs[id]) delete tombs[id];
+  write(o.tombKey, tombs); o.saveKnown(known);
+  if (changed) o.put([...cur.values()]);
+  return changed;
+}
+
+/* One timer and one set of wake-ups for every sync (pins, shared bills, spending, essentials) instead of one
+   each: every 30 s while the app is on screen, when it comes back on screen, and when the signal returns.
+   Each sync skips itself when it isn't set up. */
+const ticks = new Set();
+let tickPoll = null;
+const runTicks = () => { for (const fn of ticks) fn(); };
+export function onSyncTick(fn) {
+  ticks.add(fn);
+  if (tickPoll) return;
+  tickPoll = setInterval(() => { if (document.visibilityState === 'visible') runTicks(); }, POLL_MS);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') runTicks(); });
+  window.addEventListener('online', runTicks);
+}
+
+// Pins: pull everything for this trip, merge, push whatever this device has that's newer.
 export async function syncNow() {
   const code = getCode();
   if (!isConfigured() || !code || !hooks) return;
   if (running) { again = true; return; }
   running = true; setStatus('syncing');
   try {
-    const rows = await rpc('trip_get', { p_trip: code });
-    const local = new Map(hooks.getPlaces().map(p => [p.id, p]));
-    const tombs = read(TOMB_KEY, {}), known = read(KNOWN_KEY, {});
-    let changed = false;
-    for (const r of Array.isArray(rows) ? rows : []) {
-      const lp = local.get(r.id);
-      const lu = Math.max(lp ? (lp.updatedAt || lp.createdAt || 1) : 0, tombs[r.id] || 0);
-      // On a tie the first time this device sees a pin, the trip's copy wins.
-      if (r.updated_at > lu || (r.updated_at === lu && !(r.id in known))) {
-        if (r.deleted) { if (local.delete(r.id)) changed = true; tombs[r.id] = r.updated_at; }
-        else if (r.data && typeof r.data === 'object') { local.set(r.id, { ...r.data, id: r.id, updatedAt: r.updated_at }); delete tombs[r.id]; changed = true; }
-      }
-      known[r.id] = r.updated_at;
-    }
-    const out = [];
-    for (const p of local.values()) {
-      const u = p.updatedAt || p.createdAt || 1;
-      if (u > (known[p.id] || 0)) out.push({ id: p.id, data: p, deleted: false, updated_at: u });
-    }
-    for (const [id, ts] of Object.entries(tombs)) {
-      if (!local.has(id) && ts > (known[id] || 0)) out.push({ id, data: null, deleted: true, updated_at: ts });
-    }
-    for (let i = 0; i < out.length; i += 400) {
-      const chunk = out.slice(i, i + 400);
-      await rpc('trip_put', { p_trip: code, p_rows: chunk });
-      for (const r of chunk) known[r.id] = r.updated_at;
-    }
-    // Tombstones the server already has are no longer needed locally.
-    for (const id of Object.keys(tombs)) if (known[id] >= tombs[id]) delete tombs[id];
-    write(TOMB_KEY, tombs); write(KNOWN_KEY, known);
-    if (changed) hooks.applyRemote([...local.values()]);
+    await syncRows({ ns: code, get: hooks.getPlaces, put: rows => { if (getCode() === code) hooks.applyRemote(rows); },
+      tombKey: TOMB_KEY, known: read(KNOWN_KEY, {}), saveKnown: k => write(KNOWN_KEY, k) });
     setStatus('ok');
   } catch (e) {
     const offline = e.name === 'AbortError' || e instanceof TypeError || !navigator.onLine;
@@ -114,16 +149,10 @@ export function schedule(ms = 800) {
   if (!isConfigured() || !getCode()) return;
   clearTimeout(timer); timer = setTimeout(syncNow, ms);
 }
-function startPolling() {
-  stopPolling();
-  poll = setInterval(() => { if (document.visibilityState === 'visible') syncNow(); }, POLL_MS);
-}
-function stopPolling() { clearInterval(poll); poll = null; }
 
 export function startSync(h) {
   hooks = h;
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
-  window.addEventListener('online', () => syncNow());
+  onSyncTick(syncNow);
   // A "link this device" URL looks like  …/#join=ABCD-EFGH-…
   const m = location.hash.match(/^#join=([A-Za-z0-9-]+)$/);
   if (m && isConfigured()) {
@@ -132,5 +161,5 @@ export function startSync(h) {
   }
   if (!isConfigured()) { setStatus('unset'); return; }
   if (!getCode()) { setStatus('off'); return; }
-  syncNow(); startPolling();
+  syncNow();
 }

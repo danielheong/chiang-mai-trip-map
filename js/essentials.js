@@ -5,7 +5,7 @@
 // the trip code and stored under a separate, derived namespace. So every device with the trip
 // code gets it, the server can't read it, and view-only links (which read the pin rows of the
 // real trip code) never include it.
-import { rpc, isConfigured, getCode } from './sync.js?v=202611182148';
+import { rpc, isConfigured, getCode, onSyncTick } from './sync.js?v=202611190007';
 
 const KEY = 'cm-trip-map-essentials';
 const ROW = '__ess';
@@ -140,7 +140,7 @@ function showDriver() {
 }
 
 /* ---------- encrypted sync across devices that share the trip code ---------- */
-let hooks = null, timer = null, busy = false;
+let hooks = null, timer = null, busy = false, again = false;
 const b64 = u8 => btoa(String.fromCharCode(...u8));
 const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 async function keysFor(code) {
@@ -153,7 +153,8 @@ async function keysFor(code) {
 }
 export async function syncNow() {
   const code = getCode();
-  if (busy || !isConfigured() || !code || !crypto?.subtle) return;
+  if (!isConfigured() || !code || !crypto?.subtle) return;
+  if (busy) { again = true; return; }   // a save during a sync goes up right after it
   busy = true;
   try {
     const { ns, key } = await keysFor(code);
@@ -161,6 +162,7 @@ export async function syncNow() {
     const row = (Array.isArray(rows) ? rows : []).find(r => r.id === ROW && !r.deleted && r.data?.ct);
     if (row && row.updated_at > data.updatedAt) {
       const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unb64(row.data.iv) }, key, unb64(row.data.ct));
+      if (row.updated_at <= data.updatedAt) return;   // edited on this device while decrypting: keep that
       data = clean({ ...JSON.parse(new TextDecoder().decode(plain)), updatedAt: row.updated_at });
       try { localStorage.setItem(KEY, JSON.stringify(data)); } catch {}
       hooks?.onChange?.();
@@ -169,10 +171,10 @@ export async function syncNow() {
       const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(data))));
       await rpc('trip_put', { p_trip: ns, p_rows: [{ id: ROW, data: { v: 1, iv: b64(iv), ct: b64(ct) }, deleted: false, updated_at: data.updatedAt }] });
     }
-  } catch { /* offline or not set up: the local copy is still there */ } finally { busy = false; }
+  } catch { /* offline or not set up: the local copy is still there */ } finally { busy = false; if (again) { again = false; schedule(); } }
 }
 function schedule() { clearTimeout(timer); timer = setTimeout(syncNow, 900); }
 export function startSync(h) {
   hooks = h; syncNow();
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow(); });
+  onSyncTick(syncNow);
 }
